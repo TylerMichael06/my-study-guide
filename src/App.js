@@ -2,7 +2,7 @@ import { useState } from "react";
 import Dashboard from "./Dashboard";
 
 // ─── ADD LECTURE IMPORTS HERE ─────────────────────────────────────────────────
-// Example: import Lecture1_Intro from "./lectures/Lecture1_Intro";
+import Lecture1_Intro from "./lectures/Lecture1_Intro";
 
 // ─── LECTURES ARRAY ───────────────────────────────────────────────────────────
 // Add new lectures below. Types: "LECTURE", "DISCUSSION", "EXAM PREP", "DIVIDER"
@@ -19,7 +19,7 @@ const ALERT = "#ff6b5e";     // midterm
 
 const LECTURES = [
   { id: "d1", type: "DIVIDER", title: "UNIT 1 — FOUNDATIONS", subtitle: "Aug 24 – Sep 21", color: TIDEPOOL, icon: "🏔️" },
-  { id: 1, type: "LECTURE", date: "Aug 24", title: "Course Intro & Linear Models", subtitle: "ML/DL framing, agent security and trustworthy AI, linear models", color: TIDEPOOL, icon: "🧭", ready: false },
+  { id: 1, type: "LECTURE", date: "Aug 24", title: "Course Intro & Linear Models", subtitle: "ML/DL framing, agent security and trustworthy AI, linear models", color: TIDEPOOL, icon: "🧭", component: Lecture1_Intro, ready: true },
   { id: 2, type: "LECTURE", date: "Aug 31", title: "Classical ML", subtitle: "Decision trees, kNN, clustering, model metrics — recorded, no live session", color: TIDEPOOL, icon: "🌲", ready: false },
   { id: 3, type: "LECTURE", date: "Sep 14", title: "Neural Network Basics", subtitle: "Perceptron, gradient descent, forward propagation", color: TIDEPOOL, icon: "🧠", ready: false },
   { id: 4, type: "LECTURE", date: "Sep 21", title: "Backpropagation", subtitle: "Vanishing gradients, activation functions — NVIDIA guest lecture · Assignment out", color: TIDEPOOL, icon: "⚡", ready: false },
