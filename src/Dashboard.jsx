@@ -136,13 +136,14 @@ export default function Dashboard({ lectures, onSelectLecture }) {
         }}>
           <div>
             <div style={{ fontFamily: MONO, fontSize: "11px", letterSpacing: "4px", color: TIDEPOOL, marginBottom: "12px" }}>
-              USC · SPRING 2026 · FIELD NOTES
+              USC · SPRING 2026
             </div>
             <div style={{ fontFamily: DISPLAY, fontSize: "44px", fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.05, color: BONE }}>
               Deep Learning
             </div>
             <div style={{ fontFamily: BODY, fontSize: "14px", color: LICHEN, marginTop: "12px", maxWidth: "440px", lineHeight: 1.65 }}>
-              One semester, one summit. Chart the terrain lecture by lecture, and show up to the final already having done the climb.
+              Difficulties strengthen the mind, as labor does the body -Seneca
+              Waste no more time arguing about what a good man should be. Be one. -Marcus Aurelius
             </div>
           </div>
           <CountdownRing daysLeft={daysLeft} label={daysLeft > 0 ? examLabel : "EXAM DAY"} />
