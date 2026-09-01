@@ -15,6 +15,9 @@ const DISPLAY = "'Space Grotesk', sans-serif";
 const BODY = "'Manrope', sans-serif";
 const MONO = "'Space Mono', monospace";
 
+// ── PASTE YOUR CLOUDFLARE WORKER URL HERE AFTER DEPLOYING (see setup steps) ──
+const WORKER_URL = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev";
+
 // ── UPDATE THIS SYSTEM PROMPT WITH COURSE KNOWLEDGE AS LECTURES ARE ADDED ────
 const TUTOR_SYSTEM_PROMPT = `You are an expert teaching assistant for a Deep Learning course at USC. You help students understand concepts, work through problems, and prepare for exams.
 
@@ -38,7 +41,12 @@ COURSE CONTEXT — CSCI 566, USC, Fall 2026 (Prof. Yue Zhao):
 - Midterm: Monday Nov 2, in class. Open book, no electronic devices. Mostly multiple choice plus some single-number computation questions. Cumulative through the Oct 26 lecture only — nothing taught after that is in scope. Detailed scope posted by Oct 19.
 - Schedule by topic: Aug 24 intro/linear models · Aug 31 classical ML (recorded) · Sep 14 NN basics/perceptron/gradient descent · Sep 21 backprop/vanishing gradients/activations (assignment out) · Sep 28 CNNs (Quiz 1) · Oct 5 RNN/LSTM/GNN (pre-proposal due) · Oct 12 training dynamics/transfer learning · Oct 19 GAN/VAE (assignment due) · Oct 26 attention/decoding/MoE (midterm review) · Nov 2 MIDTERM · Nov 9 self-supervised learning/LLMs/OOD (midterm report due) · Nov 16 scaling laws/RL (Quiz 2) · Nov 23 AutoML/project clinic · Nov 30 poster session · Dec 7 final report due.
 - Course project: groups of 4-6, open topic, worth 45 points (pre-proposal 5, midterm report 10, final report 15-25, poster defense 10 in-person only, peer eval 5).
-- If asked about logistics you're unsure of (specific deadlines beyond what's listed here, TA office hours, Piazza/Gradescope links), tell the student to check the course website or Piazza rather than guessing.`;
+- If asked about logistics you're unsure of (specific deadlines beyond what's listed here, TA office hours, Piazza/Gradescope links), tell the student to check the course website or Piazza rather than guessing.
+
+COVERED SO FAR (lectures the student has study pages for):
+- Lecture 1 (Aug 24): three pillars (algorithms/data/compute), ML as function approximation, Universal Approximation Theorem, linear classifier y=Xw+b, supervised/unsupervised/self-supervised, next-token prediction, LLM→assistant→agent→agentic system, ReAct, agent skills & minimum privilege, agent failure modes (shortcut learning, execution loops, overprivilege), six trustworthiness dimensions.
+- Lecture 2 (Aug 31, recorded): loss functions (hinge, L1, L2, cross-entropy), empirical risk minimization, overfitting/underfitting & Occam's razor, regularization (L1/lasso, L2/ridge, elastic net), optimization (random search, analytical solution, gradient descent), linear separability & need for non-linearity, decision trees (greedy splitting, stopping conditions, NP-hardness), model vs. data complexity, ensembles (bagging, random forests, boosting, XGBoost/LightGBM/CatBoost), model metrics (accuracy, precision, recall, F1, AUC-ROC, PR-AUC, rare-positive problem), kNN (k's effect on complexity, distance metrics, kNN-LM, semantic caching), hyperparameter selection (train/val/test, cross-validation), clustering & k-means (four steps, failure modes, LLM-guided clustering).
+- Note: Chain of Thought / Tree of Thoughts material from Lecture 2 is explicitly NOT on the midterm — the professor said so directly. Flag this if the student is spending study time there.`;
 
 export default function TutorChat({ onClose, lectureTitle, lectureTranscript }) {
   const [messages, setMessages] = useState([
@@ -71,14 +79,10 @@ export default function TutorChat({ onClose, lectureTitle, lectureTranscript }) 
       (lectureTranscript ? `\n\n=== RAW LECTURE TRANSCRIPT ===\n${lectureTranscript}` : "");
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      // No API key here — the Worker holds it server-side. See worker.js setup steps.
+      const response = await fetch(WORKER_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": "YOUR_API_KEY_HERE",  // ← add your API key here
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-5",
           max_tokens: 600,
@@ -90,7 +94,7 @@ export default function TutorChat({ onClose, lectureTitle, lectureTranscript }) 
       const reply = data.content?.[0]?.text || "Sorry, something went wrong.";
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
-      setMessages(prev => [...prev, { role: "assistant", content: "Connection error. Check your API key in TutorChat.jsx." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "Connection error. Check that WORKER_URL in TutorChat.jsx is set correctly and your Worker is deployed." }]);
     }
     setLoading(false);
     setMode("chat");

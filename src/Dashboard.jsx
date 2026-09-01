@@ -61,8 +61,8 @@ function CountdownRing({ daysLeft, label }) {
 // ── KEY DATES — from the CSCI 566 Fall 2026 syllabus. There is no final exam;
 // the poster session + final report serve as the summative experience. ──────
 const KEY_DATES = [
+  { date: "2026-09-14", label: "Pre-Proposal Due", detail: "1-page project pre-proposal" },
   { date: "2026-09-28", label: "Quiz 1", detail: "In-class, completion-graded" },
-  { date: "2026-10-05", label: "Pre-Proposal Due", detail: "1-page project pre-proposal" },
   { date: "2026-10-19", label: "Assignment Due", detail: "Coding assignment · exam scope posted" },
   { date: "2026-11-02", label: "Midterm", detail: "Open book, no devices — cumulative through Oct 26" },
   { date: "2026-11-09", label: "Midterm Report Due", detail: "Project progress report" },
@@ -136,14 +136,13 @@ export default function Dashboard({ lectures, onSelectLecture }) {
         }}>
           <div>
             <div style={{ fontFamily: MONO, fontSize: "11px", letterSpacing: "4px", color: TIDEPOOL, marginBottom: "12px" }}>
-              USC · SPRING 2026
+              USC · SPRING 2026 · FIELD NOTES
             </div>
             <div style={{ fontFamily: DISPLAY, fontSize: "44px", fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1.05, color: BONE }}>
               Deep Learning
             </div>
             <div style={{ fontFamily: BODY, fontSize: "14px", color: LICHEN, marginTop: "12px", maxWidth: "440px", lineHeight: 1.65 }}>
-              Difficulties strengthen the mind, as labor does the body -Seneca
-              Waste no more time arguing about what a good man should be. Be one. -Marcus Aurelius
+              One semester, one summit. Chart the terrain lecture by lecture, and show up to the final already having done the climb.
             </div>
           </div>
           <CountdownRing daysLeft={daysLeft} label={daysLeft > 0 ? examLabel : "EXAM DAY"} />
