@@ -61,8 +61,8 @@ function CountdownRing({ daysLeft, label }) {
 // ── KEY DATES — from the CSCI 566 Fall 2026 syllabus. There is no final exam;
 // the poster session + final report serve as the summative experience. ──────
 const KEY_DATES = [
-  { date: "2026-09-14", label: "Pre-Proposal Due", detail: "1-page project pre-proposal" },
-  { date: "2026-09-28", label: "Quiz 1", detail: "In-class, completion-graded" },
+  { date: "2026-09-18", label: "Pre-Proposal (late teams)", detail: "Submit as a group on Gradescope — extended to Fri for late-formed teams" },
+  { date: "2026-09-28", label: "Quiz 1 (TBD)", detail: "Prof said Sep 14 the quiz format is still undecided — watch Piazza" },
   { date: "2026-10-19", label: "Assignment Due", detail: "Coding assignment · exam scope posted" },
   { date: "2026-11-02", label: "Midterm", detail: "Open book, no devices — cumulative through Oct 26" },
   { date: "2026-11-09", label: "Midterm Report Due", detail: "Project progress report" },
