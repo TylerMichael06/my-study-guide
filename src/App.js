@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard";
 import Lecture1_Intro from "./lectures/Lecture1_Intro";
 import Lecture2_ClassicalML from "./lectures/Lecture2_ClassicalML";
 import Lecture3_NeuralNetworks from "./lectures/Lecture3_NeuralNetworks";
+import Lecture4_CNNs from "./lectures/Lecture4_CNNs";
 
 // ─── LECTURES ARRAY ───────────────────────────────────────────────────────────
 // Add new lectures below. Types: "LECTURE", "DISCUSSION", "EXAM PREP", "DIVIDER"
@@ -24,11 +25,11 @@ const LECTURES = [
   { id: 1, type: "LECTURE", date: "Aug 24", title: "Course Intro & Linear Models", subtitle: "ML/DL framing, agent security and trustworthy AI, linear models", color: TIDEPOOL, icon: "🧭", component: Lecture1_Intro, ready: true },
   { id: 2, type: "LECTURE", date: "Aug 31", title: "Classical ML", subtitle: "Loss & optimization, decision trees, ensembles, metrics, kNN, clustering — recorded lecture", color: TIDEPOOL, icon: "🌲", component: Lecture2_ClassicalML, ready: true },
   { id: 3, type: "LECTURE", date: "Sep 14", title: "Neural Networks & Backpropagation", subtitle: "Forward pass, activation functions, backprop, vanishing/exploding gradients, intro to CNNs · Pre-proposal due", color: TIDEPOOL, icon: "🧠", component: Lecture3_NeuralNetworks, ready: true },
-  { id: 4, type: "LECTURE", date: "Sep 21", title: "Backpropagation", subtitle: "Shorter lecture continuing CNNs — NVIDIA guest lecture · Assignment out", color: TIDEPOOL, icon: "⚡", ready: false },
+  { id: 4, type: "LECTURE", date: "Sep 21", title: "Convolutional Neural Networks", subtitle: "Stride, padding, output size, pooling, batch norm, ResNet, CLIP · NVIDIA guest lecture on physical AI", color: TIDEPOOL, icon: "🖼️", component: Lecture4_CNNs, ready: true },
 
   { id: "d2", type: "DIVIDER", title: "UNIT 2 — CORE ARCHITECTURES", subtitle: "Sep 28 – Oct 12", color: DAWN, icon: "⛰️" },
-  { id: 5, type: "LECTURE", date: "Sep 28", title: "Convolutional Neural Networks", subtitle: "CNNs · Quiz 1 in class", color: DAWN, icon: "🖼️", ready: false },
-  { id: 6, type: "LECTURE", date: "Oct 5", title: "RNN, LSTM & GNNs", subtitle: "Sequence models, graph neural networks", color: DAWN, icon: "🔁", ready: false },
+  { id: 5, type: "LECTURE", date: "Sep 28", title: "Sequential Models", subtitle: "RNNs and sequential data — next block previewed Sep 21 · Quiz 1 per syllabus", color: DAWN, icon: "🔁", ready: false },
+  { id: 6, type: "LECTURE", date: "Oct 5", title: "RNN, LSTM & GNNs", subtitle: "Sequence models, graph neural networks", color: DAWN, icon: "🕸️", ready: false },
   { id: 7, type: "LECTURE", date: "Oct 12", title: "Training Dynamics & Transfer Learning", subtitle: "How training actually behaves, transfer learning", color: DAWN, icon: "🌊", ready: false },
 
   { id: "d3", type: "DIVIDER", title: "UNIT 3 — GENERATIVE & ATTENTION", subtitle: "Oct 19 – Oct 26", color: GOLD, icon: "🌄" },
