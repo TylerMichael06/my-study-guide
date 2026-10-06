@@ -1,5 +1,6 @@
 import { useState } from "react";
 import TutorChat from "../TutorChat";
+import LectureGame from "../LectureGame";
 
 // Unit 1 — Foundations accent (tidepool teal), matching App.js LECTURES entry
 const COLOR = "#2fd6ac";
@@ -3319,6 +3320,444 @@ const EXAM_TIPS = [
   { tip: "The entire NVIDIA guest lecture is not examinable", detail: "Cosmos, GR00T, Isaac Lab, the data pyramid, Newton — all context and career material. Genuinely useful for interviews and project ideas, but skip it when time is tight.", priority: "LOW" },
 ];
 
+// ─── GAME: Sliding Windows ──────────────────────────────────────────────────
+// Eight levels. Five of this lecture's exam tips are HIGH and four are pure
+// arithmetic — he said of the output-size formula "we usually test that" — so
+// the student computes sizes, parameter counts and normalised values directly.
+// Every number is the lecture's own, recomputed in node.
+
+// Level 4: a 4x4 activation map, 2x2 max pooling at stride 2.
+// Verified: every window has a strictly unique maximum, so the answer is exact.
+const POOL = [
+  [1, 3, 2, 9],
+  [4, 2, 6, 1],
+  [8, 5, 0, 7],
+  [3, 6, 4, 2],
+];
+const isWindowMax = (r, c) => {
+  const R = Math.floor(r / 2) * 2;
+  const C = Math.floor(c / 2) * 2;
+  let best = -Infinity;
+  for (let i = R; i < R + 2; i++) for (let j = C; j < C + 2; j++) best = Math.max(best, POOL[i][j]);
+  return POOL[r][c] === best;
+};
+
+// Level 7 (not examinable): plain nets degrade past ~18 layers; ResNets don't.
+const plainErr = (d) => 0.09 + 0.0001 * Math.pow(d - 18, 2);
+const resErr = (d) => 0.11 - 0.0006 * d;
+
+const GAME = {
+  title: "Sliding Windows",
+  tagline: "Eight levels on the arithmetic the midterm actually asks for: how big the output is, how many parameters you just created, and which layers learn nothing at all.",
+  nodePrefix: "",
+  takeaway: "A convolution layer trades full connectivity for a small filter reused everywhere, so you get spatial structure and a parameter count in the hundreds instead of the billions — and once you can size the output and count the weights, the rest of a CNN is just those blocks in a sensible order.",
+  levels: [
+    // ── 1 ────────────────────────────────────────────────────────────────────
+    {
+      id: "why",
+      name: "Why not just connect everything?",
+      problem: "Lecture 3 ended by pointing a fully connected layer at an image. Two things break at once, and both are fatal.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'A modest <span class="mono">200 × 200</span> image. A fully connected layer has to flatten it first.',
+          q: "How many pixels is that?",
+          answer: 40000,
+          tol: 0.5,
+          hint: "Width times height. Greyscale, so no channel multiplier yet.",
+          why: '<span class="mono">200 × 200 = 40,000</span> inputs. Now connect those to a hidden layer of 40,000 units and the first layer alone needs <b>1.6 billion</b> weights — for one small image, in one layer. Untrainable.',
+        },
+        {
+          type: "mcq",
+          q: "The parameter count is the first failure. What is the second?",
+          opts: [
+            "Images must be square",
+            "Flattening destroys spatial structure — neighbouring pixels are strongly related, and a flattened vector treats each as an unrelated input",
+            "Fully connected layers cannot handle colour",
+            "The network would need more layers",
+          ],
+          a: 1,
+          hints: { 2: "Colour makes the count worse (three channels), but greyscale images have exactly the same structural problem." },
+          why: "Two failures together. Even if you could afford 1.6 billion weights, the model has thrown away the single most useful fact about an image: <b>nearby pixels belong together</b>.",
+        },
+        {
+          type: "mcq",
+          q: "Convolution fixes both in two moves. What are they, in order?",
+          opts: [
+            "Shrink the image, then flatten it",
+            "Connect each unit to a small local patch, then reuse the same weights at every position",
+            "Add more layers, then use dropout",
+            "Convert to greyscale, then normalise",
+          ],
+          a: 1,
+          hints: { 0: "Shrinking throws information away outright. Convolution keeps the whole image and changes how it is <i>wired</i>." },
+          why: "<b>Local connectivity</b> cuts the parameter count hugely and keeps neighbourhoods intact. <b>Weight sharing</b> cuts it again, and encodes a real assumption: a feature worth detecting is worth detecting anywhere in the image. That shared sliding patch is the filter.",
+        },
+      ],
+    },
+    // ── 2 ────────────────────────────────────────────────────────────────────
+    {
+      id: "sizing",
+      name: "Sizing the output",
+      problem: "A filter slides across the input in fixed steps. It has to land exactly — and for some combinations of size and stride, it simply cannot.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'Input <span class="mono">32 × 32</span>, filter <span class="mono">5 × 5</span>, stride <span class="mono">1</span>, no padding.<br><br><span class="mono">output = (N − F) / stride + 1</span>',
+          q: "What is the output width?",
+          answer: 28,
+          tol: 0.5,
+          hint: "Subtract before you divide: (32 − 5) first, then ÷ 1, then + 1.",
+          why: '<span class="mono">(32 − 5)/1 + 1 = 28</span>. At stride 1 the windows overlap heavily, so you lose only the few positions where the filter would hang off the edge.',
+        },
+        {
+          type: "numeric",
+          ctx: 'Same formula, bigger steps. Input <span class="mono">7 × 7</span>, filter <span class="mono">3 × 3</span>, stride <span class="mono">2</span>, no padding.',
+          q: "What is the output width now?",
+          answer: 3,
+          tol: 0.5,
+          hint: "(7 − 3) = 4, divided by a stride of 2, plus 1.",
+          why: '<span class="mono">(7 − 3)/2 + 1 = 3</span>. Doubling the stride roughly halves the output — <b>stride is the compression knob</b>.',
+        },
+        {
+          type: "mcq",
+          ctx: 'Push it further: input <span class="mono">7 × 7</span>, filter <span class="mono">3 × 3</span>, stride <span class="mono">3</span>. The formula gives <span class="mono">(7 − 3)/3 + 1 = 2.33</span>.',
+          q: "What does a non-integer result mean?",
+          opts: [
+            "Round it down to 2 and carry on",
+            "The filter does not tile this input — stepping by 3 leaves it hanging off the edge partway through the last window. This configuration is invalid as it stands",
+            "The formula only works for stride 1",
+            "It means the output is 2.33 pixels wide",
+          ],
+          a: 1,
+          hints: {
+            0: "Rounding hides a real problem rather than solving it, and it is not what the formula is telling you.",
+            2: "It works for any stride — you just used it at stride 2 a moment ago.",
+          },
+          why: "Some combinations of input size, filter size and stride <b>do not tile</b>. Spotting the non-integer is part of the question — and it is precisely what padding exists to fix.",
+        },
+        {
+          type: "numeric",
+          ctx: 'Zero padding adds a border of zeros on <b>every</b> side, so the formula becomes:<br><br><span class="mono">output = (N + 2P − F) / stride + 1</span><br><br>Input <span class="mono">7 × 7</span>, filter <span class="mono">3 × 3</span>, stride <span class="mono">1</span>, padding <span class="mono">P = 1</span>.',
+          q: "What is the output width?",
+          answer: 7,
+          tol: 0.5,
+          hint: "Padding is added to both sides, which is why the formula says 2P, not P. So the effective input width is 7 + 2.",
+          why: '<span class="mono">(7 + 2 − 3)/1 + 1 = 7</span> — the output is <b>the same size as the input</b>, which is the usual reason to pad. Forgetting the factor of 2 on P is the most common way to miss this question.',
+        },
+      ],
+    },
+    // ── 3 ────────────────────────────────────────────────────────────────────
+    {
+      id: "params",
+      name: "Counting the parameters",
+      problem: "Weight sharing is supposed to make convolution cheap. That claim is only worth anything if you can actually count what a layer costs.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'Input <span class="mono">32 × 32 × 3</span> (a colour image). The layer uses <span class="mono">six</span> filters, each <span class="mono">5 × 5</span>.<br><br>A filter\'s depth always matches its input\'s depth, so each one is really <span class="mono">5 × 5 × 3</span>. There is one bias per filter.<br><br><span class="mono">params = F² × C × K + K</span>',
+          q: "How many learnable parameters in this layer?",
+          answer: 456,
+          tol: 0.5,
+          hint: "25 × 3 = 75 weights per filter, times 6 filters — then do not forget one bias per filter.",
+          why: '<span class="mono">5² × 3 × 6 = 450</span> weights, plus <span class="mono">6</span> biases, = <b>456</b>. The two classic errors are dropping the channel depth C and forgetting the K biases.',
+        },
+        {
+          type: "mcq",
+          q: "Why is C (the input depth) in that formula at all?",
+          opts: [
+            "It counts the number of filters",
+            "A filter spans the full depth of its input — a 5×5 filter on a 3-channel image is really a 5×5×3 cube of weights",
+            "It is the number of output channels",
+            "It is the stride",
+          ],
+          a: 1,
+          hints: {
+            0: "That is K. Both appear in the formula and they are different things.",
+            2: "Output depth is set by how many filters you use, which is K again.",
+          },
+          why: "<b>Filter depth always equals input depth.</b> Each filter produces one 2D activation map, so K filters give an output of depth K — here 28 × 28 × 6.",
+        },
+        {
+          type: "mcq",
+          ctx: 'That layer turns a <span class="mono">32 × 32 × 3</span> input (3,072 values) into a <span class="mono">28 × 28 × 6</span> output (4,704 values) using <b>456</b> parameters.',
+          q: "Roughly what would a fully connected layer between those same two volumes cost?",
+          opts: ["about 5,000", "about 50,000", "about 14.5 million", "about the same, 456"],
+          a: 2,
+          hints: { 3: "Fully connected means every one of 3,072 inputs wired to every one of 4,704 outputs. Multiply them." },
+          why: "<span class=\"mono\">3,072 × 4,704 ≈ 14.5 million</span> against <b>456</b> — roughly <b>32,000× cheaper</b>, and the convolution keeps spatial structure the fully connected layer would have destroyed. That is the whole argument in one comparison.",
+        },
+      ],
+    },
+    // ── 4 ────────────────────────────────────────────────────────────────────
+    {
+      id: "pooling",
+      name: "Pooling",
+      problem: "Convolution compresses the image while learning what to keep. Pooling compresses it further while learning absolutely nothing — and that is the point.",
+      steps: [
+        {
+          type: "grid",
+          q: "Max pooling, <span class=\"mono\">2 × 2</span> windows at stride 2, on this 4 × 4 activation map. Click the value in each window that <b>survives</b>.",
+          rows: ["row 0", "row 1", "row 2", "row 3"],
+          cols: ["col 0", "col 1", "col 2", "col 3"],
+          target: (r, c) => isWindowMax(r, c),
+          cellLabel: (r, c) => String(POOL[r][c]),
+          cellAria: (r, c, on) => `row ${r} column ${c}, value ${POOL[r][c]}: ${on ? "kept" : "not kept"}`,
+          hintFn: ({ cells }) => {
+            const extra = cells.filter((x) => !x.should).length;
+            const missed = cells.filter((x) => x.should).length;
+            if (extra && !missed) return "You have kept too many. Each 2×2 window contributes exactly <b>one</b> survivor — four in total across this map.";
+            if (missed && !extra) return "One or more windows has no survivor yet. The map splits into four non-overlapping 2×2 blocks: top-left, top-right, bottom-left, bottom-right.";
+            return "Work one 2×2 block at a time and keep only its single largest value. There are four blocks, so four survivors.";
+          },
+          why: "<b>4, 9, 8 and 7.</b> The map shrinks from 4 × 4 to 2 × 2 — a 75% reduction — and the strongest activation in each neighbourhood is what carries forward. Yes, information is lost; that is intentional. Not every pixel is useful.",
+        },
+        {
+          type: "multi",
+          q: "Select every layer type that holds <b>learnable parameters</b>.",
+          opts: ["Convolution", "Pooling", "Fully connected", "Softmax"],
+          correct: [0, 2],
+          hintFn: (sel) => {
+            if (sel.indexOf(1) !== -1) return "Pooling is the one to look at hardest. Taking the largest value in a window — is there any weight there that gradient descent could adjust?";
+            if (sel.indexOf(3) !== -1) return "Softmax just exponentiates and normalises whatever it is handed. Nothing in it is learned.";
+            return "You are missing one. Which layers actually hold a weight matrix that training updates?";
+          },
+          why: "<b>Convolution and fully connected only.</b> Pooling is a fixed operation applied straight to the activation map — no weights, nothing to train. That is the cleanest distinction between pooling and convolution, and it is a HIGH-priority tip.",
+        },
+        {
+          type: "mcq",
+          q: "Max pooling versus average pooling — what does each preserve?",
+          opts: [
+            "They are interchangeable",
+            "Max keeps the strongest activation, so it preserves whether a feature is present anywhere in the window. Average smooths across the window, which is steadier but washes extremes out",
+            "Average is always better because it uses all the values",
+            "Max is faster, which is the only difference",
+          ],
+          a: 1,
+          hints: { 2: "Using all the values is exactly how it loses a sharp signal — a single strong activation gets diluted by three weak ones." },
+          why: "Detecting whether a feature appears <i>anywhere</i> in a region is usually what you want, which is why max pooling is the default. L2-norm pooling is a third option. (The professor's aside about max pooling shifting outputs slightly is <b>not</b> on the exam.)",
+        },
+      ],
+    },
+    // ── 5 ────────────────────────────────────────────────────────────────────
+    {
+      id: "pipeline",
+      name: "The full pipeline",
+      problem: "You now have every piece. A CNN is just those pieces in a sensible order, with a clean division of labour.",
+      steps: [
+        {
+          type: "order",
+          q: "Assemble AlexNet's shape, from raw image to class probabilities.",
+          pieces: ["Convolution", "Pooling", "More convolutions", "Pooling again", "Fully connected", "Softmax"],
+          posHints: [
+            "Start by extracting features from the raw pixels.",
+            "Then compress what you just extracted.",
+            "Build more complex features on top of the simple ones.",
+            "Compress again.",
+            "Now flatten and map down to one value per class.",
+            "Finally, turn those scores into probabilities that sum to 1.",
+          ],
+          why: "Convolution and pooling do <b>feature extraction</b>; the fully connected layer produces the output, sized to the class count; softmax turns scores into probabilities. A non-linear activation (usually ReLU) sits between convolution layers, and pooling is <b>optional</b> — AlexNet has convolution layers with none after them.",
+        },
+        {
+          type: "mcq",
+          q: "Early convolution filters learn edges and simple colour contrasts; later ones learn complex shapes. What is that?",
+          opts: [
+            "A coincidence of initialisation",
+            "The Hubel and Wiesel hierarchy, implemented — simple features first, complex features built from them, exactly as the cat experiments described visual processing",
+            "A sign the network is overfitting",
+            "A consequence of max pooling",
+          ],
+          a: 1,
+          hints: { 2: "It is visible in networks that generalise perfectly well — it is how they work, not a fault." },
+          why: "The biological motivation turns out to be real in the learned filters: simple cells respond to orientation, complex cells to orientation plus movement. Depth is what lets the hierarchy build.",
+        },
+      ],
+    },
+    // ── 6 ────────────────────────────────────────────────────────────────────
+    {
+      id: "batchnorm",
+      name: "Batch normalisation",
+      problem: "Activations in different layers drift to wildly different scales. Optimising y = Wx is far harder when the values in x span an unpredictable range — and that feeds straight into the gradient problems from Lecture 3.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'One batch of activations: <span class="mono">2, 4, 4, 4, 5, 5, 7, 9</span>',
+          q: "What is the batch mean?",
+          answer: 5,
+          tol: 0.01,
+          hint: "Add all eight values and divide by 8.",
+          why: '<span class="mono">40 / 8 = 5</span>. Batch norm subtracts this mean, then divides by the batch standard deviation — here the variance is 4, so the standard deviation is exactly <b>2</b>.',
+        },
+        {
+          type: "numeric",
+          ctx: 'Same batch, mean <span class="mono">5</span>, standard deviation <span class="mono">2</span>.<br><br><span class="mono">normalised = (x − mean) / std</span>',
+          q: "What does the first value, 2, become?",
+          answer: -1.5,
+          tol: 0.01,
+          hint: "(2 − 5) is negative, then divide by 2. The sign matters.",
+          why: '<span class="mono">(2 − 5)/2 = −1.5</span>. Normalised, the whole batch becomes −1.5, −0.5, −0.5, −0.5, 0, 0, 1, 2 — <b>zero mean and unit variance</b>, which is the entire operation.',
+        },
+        {
+          type: "mcq",
+          q: "At test time you may only have a single sample, so there is no batch to compute statistics from. What happens?",
+          opts: [
+            "Batch norm is switched off at test time",
+            "You use the mean and standard deviation <b>saved during training</b>, so test inputs get processed exactly the way training inputs were",
+            "You compute statistics from the test set",
+            "The sample is duplicated to make a batch",
+          ],
+          a: 1,
+          hints: {
+            2: "That would leak information from the test set into inference — and with one sample the statistics would be meaningless anyway.",
+            0: "Then the model would see unnormalised inputs it was never trained on.",
+          },
+          why: "This is the most testable detail. The model was trained on normalised activations, so the <b>training statistics must be saved and reused</b>. Batch norm sits after layers that have learnable parameters, and stabilises optimisation enough that even sigmoid becomes workable.",
+        },
+      ],
+    },
+    // ── 7 ────────────────────────────────────────────────────────────────────
+    {
+      id: "beyond",
+      name: "Beyond the exam: ResNet and CLIP",
+      problem: "NOT EXAMINABLE — the professor ruled ResNet out directly: “right now I'm not going to test this,” and he skimmed CLIP. Both are standard interview material and worth one pass, so this level is here but costs you nothing to skip.",
+      steps: [
+        {
+          type: "explore",
+          q: "Stack more layers and watch two architectures diverge.",
+          ctx: "A <b>plain</b> deep network versus a <b>ResNet</b> with skip connections. Lower error is better.",
+          params: [{ id: "d", label: "layers", min: 10, max: 60, step: 2, init: 10, format: (v) => String(v) }],
+          view: (v) => ({
+            bars: [
+              { label: "plain net", value: Math.min(plainErr(v.d), 0.3), max: 0.3, kind: "bad", display: plainErr(v.d).toFixed(3) },
+              { label: "ResNet", value: resErr(v.d), max: 0.3, kind: "attn", display: resErr(v.d).toFixed(3) },
+            ],
+            readout: `${v.d} layers → plain ${plainErr(v.d).toFixed(3)}, ResNet ${resErr(v.d).toFixed(3)}`,
+            note: v.d <= 18
+              ? "So far they track each other — the plain net is even slightly ahead. Keep stacking."
+              : "Past about 18 layers the plain net gets <b>worse</b> as you add depth, while the ResNet keeps improving. Extra layers should never hurt, and for the plain net they do.",
+          }),
+          action: "Got it",
+        },
+        {
+          type: "mcq",
+          q: "Why does depth stop helping a plain network, and what do skip connections do about it?",
+          opts: [
+            "It runs out of memory; skip connections save space",
+            "The gradient has to pass through every layer and shrinks on the way. A skip connection is a shortcut that lets gradient bypass layers, so very deep networks stay trainable",
+            "Deeper networks always overfit; skips add regularisation",
+            "Skip connections remove layers entirely",
+          ],
+          a: 1,
+          hints: {
+            2: "This is degradation, not overfitting — the deeper plain net does worse on <i>training</i> data too, which overfitting would not explain.",
+            0: "The problem shows up in accuracy, not in memory.",
+          },
+          why: "This is Lecture 3's vanishing gradient, at architecture scale. The striking result is that a <b>shallower ResNet can beat a deeper plain network</b> — depth stops being a liability. Not tested this term; standard interview fare.",
+        },
+        {
+          type: "mcq",
+          q: "CLIP trains on image–text pairs without labels. What is the training signal?",
+          opts: [
+            "Each image is labelled with one of 1,000 classes",
+            "Relative similarity — matched image–text pairs should score higher against each other than mismatched ones. The contrast itself is the supervision",
+            "Humans rank every pair by hand",
+            "The model predicts the next word of each caption",
+          ],
+          a: 1,
+          hints: { 0: "That is ordinary supervised classification, and the whole point is that those labels are expensive and often do not exist." },
+          why: "Encode a batch of images and captions, score every image against every caption, then push the diagonal (true pairs) up and everything else down. The model never learns “this is a dog” in the abstract — it learns that <i>this</i> image belongs with <i>this</i> caption more than with any other. Useful when absolute labels are unavailable.",
+        },
+      ],
+    },
+    // ── 8 ────────────────────────────────────────────────────────────────────
+    {
+      id: "boss",
+      name: "Boss round: what to bring on 2 November",
+      problem: "Every idea here exists because the previous one left something unsolved. Match them up — and finish by settling exactly how to walk into the exam.",
+      steps: [
+        {
+          type: "mcq",
+          q: "Convolution exists to fix…",
+          opts: [
+            "slow training",
+            "fully connected layers on images: an impossible parameter count, and the loss of spatial structure",
+            "vanishing gradients",
+            "the need for labelled data",
+          ],
+          a: 1,
+          why: "Local connectivity plus weight sharing solves both at once.",
+        },
+        {
+          type: "mcq",
+          q: "Padding exists to fix…",
+          opts: [
+            "filters that do not tile the input, and feature maps shrinking away after a few layers",
+            "overfitting",
+            "exploding gradients",
+            "slow inference",
+          ],
+          a: 0,
+          why: "A border of zeros makes the arithmetic work out, and lets the output stay the same size as the input.",
+        },
+        {
+          type: "mcq",
+          q: "The one-line distinction between pooling and convolution:",
+          opts: [
+            "pooling is faster",
+            "pooling has no learnable parameters — it is a fixed operation, not a matrix multiplication",
+            "pooling only works on square inputs",
+            "pooling happens before convolution",
+          ],
+          a: 1,
+          why: "Nothing in a pooling layer is trained. Convolution learns its filters; pooling just takes the max.",
+        },
+        {
+          type: "mcq",
+          q: "Batch normalisation's most testable detail:",
+          opts: [
+            "it replaces the activation function",
+            "the mean and standard deviation computed during training must be saved and reused at test time",
+            "it only works with ReLU",
+            "it removes the need for a loss function",
+          ],
+          a: 1,
+          why: "Zero mean and unit variance per batch during training; saved statistics at inference.",
+        },
+        {
+          type: "mcq",
+          q: "Which of these did he say is <b>not</b> examinable?",
+          opts: [
+            "The convolution output-size formula",
+            "ResNet, the CLIP paper details, and the entire NVIDIA guest lecture",
+            "Parameter counting",
+            "Pooling",
+          ],
+          a: 1,
+          hints: { 0: "The opposite — he said of this one, directly, “we usually test that.”" },
+          why: "ResNet he ruled out by name. CLIP he was skimming. The guest lecture on physical AI — Cosmos, GR00T, the data pyramid — is context and career material, not revision.",
+        },
+        {
+          type: "mcq",
+          q: "Last one, and it changes how you prepare. The midterm is <b>open book</b> — he said bring whatever you want. So what is the real risk?",
+          opts: [
+            "Forgetting the formulas — so copy them out neatly",
+            "Not knowing which number is N, F, C, K, P or the stride. A formula page is useless if you cannot map it onto the question in front of you",
+            "Running out of space in your notes",
+            "There is no risk; open book means it is easy",
+          ],
+          a: 1,
+          hints: {
+            0: "Bring the page by all means — but having it is not the hard part when you can simply look it up.",
+            3: "Open book, multiple choice, no partial credit. Each question is right or wrong.",
+          },
+          why: 'Bring the formulas, but <b>practise with them beforehand</b>. Every numeric level in this game was the same formula applied to different numbers — that mapping is the skill being tested, not recall. Combined with Lecture 5\'s confirmation that it is <b>multiple choice only</b> with no partial credit, you now know exactly what 2 November looks like.',
+        },
+      ],
+    },
+  ],
+};
+
 export default function Lecture4_CNNs({ onBack }) {
   const [openConcept, setOpenConcept] = useState(0);
   const [openTip, setOpenTip] = useState(null);
@@ -3329,6 +3768,7 @@ export default function Lecture4_CNNs({ onBack }) {
     { id: "concepts", label: "Concepts" },
     { id: "vocab", label: "Vocabulary" },
     { id: "tips", label: "Exam Tips" },
+    { id: "game", label: "Game" },
   ];
 
   return (
@@ -3448,6 +3888,9 @@ export default function Lecture4_CNNs({ onBack }) {
             })}
           </div>
         )}
+
+        {/* Game tab */}
+        {tab === "game" && <LectureGame lectureId="lecture4" game={GAME} />}
       </div>
 
       {/* Floating tutor button — scoped to this lecture */}

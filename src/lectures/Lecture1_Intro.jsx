@@ -1,5 +1,6 @@
 import { useState } from "react";
 import TutorChat from "../TutorChat";
+import LectureGame from "../LectureGame";
 
 // Unit 1 — Foundations accent (tidepool teal), matching App.js LECTURES entry
 const COLOR = "#2fd6ac";
@@ -3541,6 +3542,502 @@ const EXAM_TIPS = [
   { tip: "Be able to name the six trustworthiness dimensions", detail: "Truthfulness, safety, fairness, robustness, privacy, ethics. Useful as a general evaluation checklist beyond just this course.", priority: "LOW" },
 ];
 
+// ─── GAME: First Principles ─────────────────────────────────────────────────
+// Eight levels following the lecture's own arc: why deep learning works at all,
+// what every model is really doing, and why the agentic layer on top keeps
+// breaking. Each level opens with the weakness the previous idea couldn't fix.
+
+// Level 2: the lecture's point that the real world is not linear, made concrete.
+// Targets are y = x², so no straight line can fit them. Least-squares optimum is
+// y = 6x − 7 with MSE 2.80 — the floor, verified in node.
+const FIT_X = [1, 2, 3, 4, 5];
+const FIT_Y = [1, 4, 9, 16, 25];
+const fitMSE = (m, c) => FIT_X.reduce((a, x, i) => a + Math.pow(m * x + c - FIT_Y[i], 2), 0) / FIT_X.length;
+
+// Level 3: raw class scores the student reads before picking the winner.
+const CLASSES = ["plane", "car", "bird", "cat", "ship"];
+const scoreCtx = (s) =>
+  '<span class="mono">output scores → ' +
+  CLASSES.map((c, i) => `${c} ${s[i].toFixed(1)}`).join(" &nbsp; ") +
+  "</span>";
+const softmax = (s) => {
+  const m = Math.max.apply(null, s);
+  const e = s.map((v) => Math.exp(v - m));
+  const t = e.reduce((a, b) => a + b, 0);
+  return e.map((v) => v / t);
+};
+const smWeights = (s) =>
+  softmax(s).map((v, i) => ({ label: CLASSES[i], value: v }));
+
+const GAME = {
+  title: "First Principles",
+  tagline: "Eight levels on why deep learning works at all — the three things that had to line up, the one goal every model shares, and why the agent layer bolted on top keeps failing on perfectly innocent requests.",
+  nodePrefix: "",
+  takeaway: "Deep learning arrived when data and compute finally caught up to decades-old algorithms; every model since is function approximation; next-token prediction removed the need for labels; and everything agentic is tooling wrapped around a model that still only predicts one token at a time.",
+  levels: [
+    // ── 1 ────────────────────────────────────────────────────────────────────
+    {
+      id: "why",
+      name: "Why now?",
+      problem: "The perceptron dates to 1958 and support vector machines ran the 1990s. Almost every algorithm in this course was invented before 2000 — so why did nothing work until about 2012?",
+      steps: [
+        {
+          type: "multi",
+          ctx: 'AlexNet, 2012: <span class="mono">1 million labeled images · 2 GPUs · 6 days of training</span>. Image classification suddenly worked far better than anything before it.',
+          q: "Three things finally lined up at once. Select all three.",
+          opts: ["Algorithms", "Data", "Compute", "A brand-new algorithm invented after 2010", "Faster home internet", "Better programming languages"],
+          correct: [0, 1, 2],
+          hintFn: (sel) => {
+            if (sel.indexOf(3) !== -1) return "The algorithms were a pillar, but they were <i>old</i>. AlexNet used convolutional networks and SGD — both decades old by 2012. Nothing fundamentally new was invented.";
+            if (sel.length < 3) return "You're missing one. Think about what AlexNet needed that a 1990s lab simply did not have: a million labeled images, and hardware that could chew through them.";
+            return "Two of those are real pillars, but one isn't. The bottleneck was never bandwidth or language design.";
+          },
+          why: "<b>Algorithms, data, compute.</b> The algorithms barely changed — what changed is that data got big (ImageNet, the open web) and compute got cheap and parallel. All three had to arrive together.",
+        },
+        {
+          type: "mcq",
+          q: 'You are asked: "why does deep learning work now and not 30 years ago?" What is the answer the professor is after?',
+          opts: [
+            "Someone finally invented a smart enough algorithm",
+            "Data, compute and algorithms converged — and the algorithms were the part that <i>didn't</i> change",
+            "Researchers in the 1990s weren't trying hard enough",
+            "Neural networks were mathematically impossible until recently",
+          ],
+          a: 1,
+          hints: {
+            0: "This is the single most common wrong answer. The building blocks were already published — look at what was missing <i>around</i> them.",
+            3: "The maths was fine. The perceptron ran in 1958. Something else was the bottleneck.",
+          },
+          why: "The answer is <b>never</b> “a smarter algorithm appeared.” It is convergence — and compute is usually the most underrated of the three.",
+        },
+        {
+          type: "mcq",
+          q: "Why GPUs specifically, rather than just faster CPUs?",
+          opts: [
+            "GPUs have more storage",
+            "GPUs run thousands of matrix multiplications in parallel, which is exactly the arithmetic a neural network is made of",
+            "CPUs can't do floating-point maths",
+            "GPUs were cheaper than CPUs",
+          ],
+          a: 1,
+          hints: { 2: "CPUs handle floating point fine. The difference is <i>how many</i> operations happen at once." },
+          why: "A neural network is mostly matrix multiplication. A CPU grinds through that serially; a GPU does thousands at once. The hardware happened to match the maths.",
+        },
+      ],
+    },
+    // ── 2 ────────────────────────────────────────────────────────────────────
+    {
+      id: "approx",
+      name: "What every model is really doing",
+      problem: "“Machine learning” covers decision trees, neural networks, clustering and reinforcement learning. Underneath, they are all chasing the same single goal — and it is not what most people say it is.",
+      steps: [
+        {
+          type: "slider",
+          q: "Fit a straight line to this data. Get the mean squared error below <span class=\"mono\">6.0</span>.",
+          ctx: 'Five measurements: <span class="mono">x = 1, 2, 3, 4, 5</span> → <span class="mono">y = 1, 4, 9, 16, 25</span>. Your model is <span class="mono">y = m·x + c</span>.',
+          params: [
+            { id: "m", label: "slope m", min: 0, max: 10, step: 0.5, init: 1, format: (v) => v.toFixed(1) },
+            { id: "c", label: "intercept c", min: -15, max: 5, step: 0.5, init: 0, format: (v) => v.toFixed(1) },
+          ],
+          view: (v) => {
+            const e = fitMSE(v.m, v.c);
+            return {
+              bars: [
+                { label: "your error", value: Math.min(e, 40), max: 40, kind: e <= 6 ? "attn" : "bad", display: e.toFixed(2) },
+                { label: "best line", value: 2.8, max: 40, kind: "state", display: "2.80" },
+              ],
+              readout: `your line predicts → ${FIT_X.map((x) => (v.m * x + v.c).toFixed(1)).join(", ")}<br>the real targets → ${FIT_Y.join(", ")}`,
+            };
+          },
+          check: (v) => {
+            const e = fitMSE(v.m, v.c);
+            if (e <= 6) return true;
+            if (v.m < 4) return "Too shallow. The targets climb from 1 to 25 across five steps — the line has to rise much faster.";
+            if (v.m > 8) return "Too steep now. Ease the slope back down and use the intercept to slide the line onto the points.";
+            return "Close. The slope is about right, so now move the intercept to shift the whole line onto the data.";
+          },
+          action: "Check the fit",
+          ok: "That is as good as a straight line gets. The best possible line is <span class=\"mono\">y = 6x − 7</span>, and even that leaves an error of <b>2.80</b> — it can never reach zero, because the data is curved and your model is straight. This is the whole game: machine learning does not look for the exact answer, it looks for a <b>good enough approximation</b>. The rest of the course is about making the approximator flexible enough to bend.",
+        },
+        {
+          type: "mcq",
+          q: "Define machine learning in one sentence.",
+          opts: [
+            "Function approximation — learning a function f that maps input X to output Y",
+            "Training a computer on data until it gets predictions right",
+            "Making predictions about the future",
+            "Teaching a machine to think like a human",
+          ],
+          a: 0,
+          hints: {
+            1: "That describes the <i>process</i>, not the goal. What mathematical object is actually being learned?",
+            3: "Appealing, but far too vague to be a definition — and the professor was explicit that the brain analogy is weak.",
+          },
+          why: "<b>Function approximation.</b> Supervised learning has X and Y and learns the mapping directly. Unsupervised only has X. Reinforcement learning discovers it through feedback. All three approximate a function.",
+        },
+        {
+          type: "mcq",
+          q: "The Universal Approximation Theorem says a neural network with enough neurons can approximate essentially any function. What does that actually buy you?",
+          opts: [
+            "A guarantee that your network will train successfully",
+            "The theoretical licence for the whole field — but it says nothing about how many neurons or how much data you'll need",
+            "Proof that neural networks beat every other method",
+            "A formula for the right number of layers",
+          ],
+          a: 1,
+          hints: {
+            0: "It says a network <i>can</i> represent the function. Whether gradient descent ever <i>finds</i> it is a completely separate question.",
+            3: "If it gave you that, architecture search wouldn't exist.",
+          },
+          why: "It is a <b>loose</b> guarantee — existence, not a recipe. But it is why “add more layers and more data” has been such a productive strategy.",
+        },
+      ],
+    },
+    // ── 3 ────────────────────────────────────────────────────────────────────
+    {
+      id: "linear",
+      name: "The simplest f: y = Xw + b",
+      problem: "“Approximate a function” is still abstract. The smallest real one is a single linear layer — and the professor said the shapes are what gets tested, not the arithmetic.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'A colour image, <span class="mono">50 × 50</span> pixels, three channels (red, green, blue). It gets flattened into one long vector before the model sees it.',
+          q: "How many numbers is that input vector?",
+          answer: 7500,
+          tol: 0.5,
+          hint: "Flattening keeps every value: width × height × channels. Don't drop the three colour channels.",
+          why: '<span class="mono">50 × 50 × 3 = 7500</span>. A colour image is three stacked grids, so the channel count multiplies in. This is the <span class="mono">X</span> in <span class="mono">y = Xw + b</span>.',
+        },
+        {
+          type: "mcq",
+          ctx: 'Input <span class="mono">X</span> is that 7500-value vector. There are 5 classes, so the output must be a 5-element vector.',
+          q: 'What shape must the weight matrix <span class="mono">w</span> be?',
+          opts: ["5 × 5", "7500 × 7500", "7500 × 5", "5 × 7500 × 3"],
+          a: 2,
+          hints: {
+            0: "That would need a 5-value input. Your input has 7500 values.",
+            1: "That maps 7500 values to 7500 values. You need to land on 5.",
+            3: "The three colour channels were already absorbed when you flattened to 7500. They don't reappear here.",
+          },
+          why: "<b>7500 × 5.</b> The inner dimensions have to meet: a 7500-value input times a 7500 × 5 matrix gives 5 values out. The bias <span class=\"mono\">b</span> is then 5 values, one per class. That shape logic is the testable part.",
+        },
+        {
+          type: "pick",
+          q: "The model outputs one score per class. Click the class it predicts.",
+          hint: "No maths needed — the prediction is simply whichever position holds the <i>highest</i> score.",
+          nextLabel: "Next image",
+          rounds: [
+            {
+              ctx: scoreCtx([1.2, 2.6, 0.4, 0.9, 1.5]),
+              items: CLASSES,
+              answer: 1,
+              weights: smWeights([1.2, 2.6, 0.4, 0.9, 1.5]),
+              why: '<b>car.</b> The prediction is the <i>argmax</i> — the position of the largest score. Turned into probabilities (bars above), car takes about 53%, but nothing was certain: ship and plane held real weight too.',
+            },
+            {
+              ctx: scoreCtx([0.8, 1.4, 0.5, 0.3, 2.2]),
+              items: CLASSES,
+              answer: 4,
+              weights: smWeights([0.8, 1.4, 0.5, 0.3, 2.2]),
+              why: '<b>ship.</b> Same five slots, new scores, new winner. The ideal output would be the one-hot vector <span class="mono">[0,0,0,0,1]</span>; training pushes the real scores toward that shape.',
+            },
+          ],
+        },
+      ],
+    },
+    // ── 4 ────────────────────────────────────────────────────────────────────
+    {
+      id: "tokens",
+      name: "Next-token prediction",
+      problem: "Supervised learning needs labelled examples, and labels are slow and expensive to produce. So how did language models train on essentially the whole internet?",
+      steps: [
+        {
+          type: "mcq",
+          q: "What makes next-token prediction (self-supervised) scale when supervised learning cannot?",
+          opts: [
+            "It needs no human labels — every sentence ever written already contains its own answers, because the next word labels the words before it",
+            "It uses a fundamentally better algorithm",
+            "It needs far less data",
+            "It runs without GPUs",
+          ],
+          a: 0,
+          hints: {
+            2: "The opposite — it consumes <i>vastly</i> more data. The point is that the data costs nothing to label.",
+            1: "The architecture matters, but that's not what removes the bottleneck here. What was the bottleneck?",
+          },
+          why: "This is the unlock. Labelling is the bottleneck in supervised learning; next-token prediction <b>sidesteps labelling entirely</b>, so training can scale to the whole internet.",
+        },
+        {
+          type: "pick",
+          q: "All three of these are “just predict the next token.” But each needs a different <i>kind</i> of knowledge. Click the one each prompt actually requires.",
+          hint: "Ask what you'd personally have to know to finish the sentence: a fact about the world, how sentences are built, or the rule behind a sequence.",
+          nextLabel: "Next prompt",
+          rounds: [
+            {
+              ctx: 'Prompt: <span class="mono">“Stanford University is located in ___”</span>',
+              items: ["world knowledge", "syntax", "pattern"],
+              answer: 0,
+              why: "<b>World knowledge.</b> No amount of grammar gets you to “California” — you either know the fact or you don't.",
+            },
+            {
+              ctx: 'Prompt: <span class="mono">“I put a fork down on the ___”</span>',
+              items: ["world knowledge", "syntax", "pattern"],
+              answer: 1,
+              why: "<b>Syntax.</b> Several words fit here. What's needed is a grasp of how the sentence is built, not a specific fact.",
+            },
+            {
+              ctx: 'Prompt: <span class="mono">“1, 1, 2, 3, 5, ___”</span>',
+              items: ["world knowledge", "syntax", "pattern"],
+              answer: 2,
+              why: "<b>Pattern.</b> Each number is the sum of the previous two, so the answer is 8. Same next-token task, completely different ability underneath — which is why the simple framing hides so much difficulty.",
+            },
+          ],
+        },
+        {
+          type: "mcq",
+          ctx: 'You ask a <i>purely pretrained</i> model: <span class="mono">“Explain the moon landing to a six-year-old.”</span> It replies with something like <span class="mono">“Explain the theory of gravity to a six-year-old.”</span>',
+          q: "Why does it do that, and what fixes it?",
+          opts: [
+            "It's broken and needs retraining from scratch",
+            "It's completing the <i>pattern</i> of the text rather than following the instruction. Human demonstrations of good answers are what teach it to respond instead of continue",
+            "It needs a bigger context window",
+            "It needs more pretraining data",
+          ],
+          a: 1,
+          hints: {
+            3: "More of the same would make it a better pattern-completer. It would still not know that a question is meant to be <i>answered</i>.",
+            2: "Context length isn't the issue — the prompt is one short sentence.",
+          },
+          why: "Pretraining teaches the shape of language; it never teaches that an instruction should be obeyed. The gap between a next-token model and an <b>assistant</b> is exactly human demonstration data. (Worth knowing: every request also carries a hidden <b>system prompt</b> alongside what you typed.)",
+        },
+      ],
+    },
+    // ── 5 ────────────────────────────────────────────────────────────────────
+    {
+      id: "ladder",
+      name: "The ladder and the loop",
+      problem: "An assistant can answer, but it cannot do anything — it has no way to search, read a file or send an email. And when its first attempt returns the wrong thing, a single-shot answer has nowhere to go.",
+      steps: [
+        {
+          type: "order",
+          q: "Build the ladder from a raw model up to a system that pursues goals. Click the rungs in order.",
+          pieces: ["Plain LLM", "+ human demonstrations → assistant", "+ tools → agent", "+ goal-directed loop → agentic system"],
+          posHints: [
+            "Start at the bottom: text in, text out, nothing else.",
+            "Before it can use anything, it has to learn to follow instructions at all.",
+            "Now give it hands — search, files, email.",
+            "Last, let it keep going on its own until the goal is met.",
+          ],
+          why: "Each rung adds exactly one thing: instruction-following, then the ability to act, then the ability to keep acting until a goal is reached.",
+        },
+        {
+          type: "mcq",
+          q: "What separates an <i>agent</i> from an <i>agentic system</i>?",
+          opts: [
+            "The agentic system has more parameters",
+            "An agent can call tools; an agentic system runs in a loop, using the result of each action to decide the next one until the goal is met",
+            "An agentic system doesn't need a language model",
+            "Nothing — they're the same thing",
+          ],
+          a: 1,
+          hints: { 0: "Both can run on exactly the same model. The difference is structural, not scale." },
+          why: "The loop is the difference. A single tool call is an action; <b>reason → act → observe → reason again</b> is a system that can recover from its own mistakes.",
+        },
+        {
+          type: "mcq",
+          ctx: 'The lecture\'s example. You ask for the market capitalisation of Apple, Nvidia and Microsoft. The agent searches, and the result comes back with the <i>share price</i> — not the market cap.',
+          q: "In a ReAct loop, what happens next?",
+          opts: [
+            "It reports the share price as the answer",
+            "It observes that the result is the wrong quantity, reasons about what else it needs, and searches again — this time for shares outstanding",
+            "It gives up and returns an error",
+            "It runs the identical search again",
+          ],
+          a: 1,
+          hints: {
+            0: "That's the pre-ReAct failure: take whatever came back and present it. The loop exists precisely to catch this.",
+            3: "Repeating an identical query returns an identical result. Something has to change between attempts.",
+          },
+          why: "<b>Observe, then re-reason.</b> The earlier generation of models would stop at the first bad result. The loop lets the system notice the mismatch and go after the missing piece.",
+        },
+      ],
+    },
+    // ── 6 ────────────────────────────────────────────────────────────────────
+    {
+      id: "skills",
+      name: "Skills and minimum privilege",
+      problem: "Making the model reason out a whole multi-step plan from scratch every single time is slow and unreliable. And once an agent can act, the question becomes how much it is allowed to touch.",
+      steps: [
+        {
+          type: "mcq",
+          q: "What is an agent <i>skill</i>, and what are the two stages of using one?",
+          opts: [
+            "A fine-tuned model per task; you train it, then you run it",
+            "A written-down procedure (usually markdown) the agent follows. Stage one is <b>skill routing</b> — pick the smallest sufficient skill. Stage two is <b>execution</b> — call only the tools that skill needs",
+            "A plugin that replaces the language model",
+            "A prompt template with no effect on tool access",
+          ],
+          a: 1,
+          hints: { 0: "No training involved. A skill is instructions, not weights — that's what makes it cheap to write." },
+          why: "Instead of hoping the model re-derives the right plan, you write the plan down once. Both stages carry the same rule: <b>minimum sufficient</b>.",
+        },
+        {
+          type: "multi",
+          ctx: 'The computer-privilege ladder from the lecture: <span class="mono">observe → read → modify → execute → admin</span>. The task: <b>find and read the quarterly reports in the Documents folder.</b>',
+          q: "Select only the privileges this task actually requires.",
+          opts: ["observe", "read", "modify", "execute", "admin"],
+          correct: [0, 1],
+          hintFn: (sel) => {
+            if (sel.indexOf(4) !== -1) return "Admin would let the agent do anything at all, including wiping the folder. Finding and reading some files needs nothing close to that.";
+            if (sel.indexOf(2) !== -1 || sel.indexOf(3) !== -1) return "Re-read the task. It only has to <i>locate</i> files and <i>look inside</i> them. Nothing is being changed or run.";
+            return "You're short one. The agent has to locate the files in the folder before it can open them — those are two different permissions.";
+          },
+          why: "<b>Observe and read, nothing more.</b> Observe to list the folder, read to open the files. The professor's finding: across 100 requests only 55 picked the minimum skill, and even the best model picked the minimum <i>tools</i> just 14.3% of the time.",
+        },
+        {
+          type: "mcq",
+          q: "Why is overprivilege called a <i>silent</i> failure?",
+          opts: [
+            "It makes the agent noticeably slower",
+            "It throws a warning most people ignore",
+            "Nothing looks wrong — the task completes correctly. The excess access only matters the day something goes wrong, and by then it's too late",
+            "It only affects agents without skills",
+          ],
+          a: 2,
+          hints: { 1: "There is no warning. That's exactly what makes it dangerous." },
+          why: "You asked it to read a report; it read the report. That it <i>also</i> held permission to delete the whole mailbox is invisible until the day it uses it.",
+        },
+      ],
+    },
+    // ── 7 ────────────────────────────────────────────────────────────────────
+    {
+      id: "fail",
+      name: "Why agents fail",
+      problem: "Here is the uncomfortable finding: in real deployments almost none of the failures come from attackers. The systems break on perfectly benign requests, by themselves.",
+      steps: [
+        {
+          type: "pick",
+          q: "Three real failures, no attacker involved in any of them. Diagnose each one.",
+          hint: "Ask where it broke: did it refuse before starting, spin without finishing, or finish cleanly while holding access it never needed?",
+          nextLabel: "Next failure",
+          rounds: [
+            {
+              ctx: 'You ask a model to summarise a document. It refuses, calling the topic sensitive. Ask the <i>same</i> thing with the request moved to the end of a longer message and it complies.',
+              items: ["Shortcut learning", "Execution loop", "Overprivilege"],
+              answer: 0,
+              why: "<b>Shortcut learning.</b> Safety training taught the model surface cues — word position, trigger words like <span class=\"mono\">sudo</span> or <span class=\"mono\">override</span>, unfamiliar topics — rather than actual intent. The lecture's example: the same benign request moved position, and the refusal rate jumped from <b>6% to 90%</b>.",
+            },
+            {
+              ctx: 'An agent is told to find a folder. It can\'t, so it reasons, retries, reasons, retries — burning API calls for twenty minutes before timing out with nothing.',
+              items: ["Shortcut learning", "Execution loop", "Overprivilege"],
+              answer: 1,
+              why: "<b>Execution loop.</b> A single model refusing just fails once. Inside a ReAct loop that failure <i>repeats</i>, so you pay for every cycle and still get no answer — worse than a plain refusal.",
+            },
+            {
+              ctx: 'You ask an agent to read one report. It does, perfectly. It also held permission to delete your entire mailbox. Nobody noticed, and nothing went wrong — this time.',
+              items: ["Shortcut learning", "Execution loop", "Overprivilege"],
+              answer: 2,
+              why: "<b>Overprivilege.</b> The gap between the access a task needs and the access it was granted. Invisible while everything works, which is precisely the problem.",
+            },
+          ],
+        },
+        {
+          type: "mcq",
+          q: "Of real-world agent incidents, roughly what share involve an actual attacker?",
+          opts: [
+            "Almost all of them",
+            "About half",
+            "Almost none — the overwhelming majority are the system failing on its own, through model errors and misconfiguration",
+            "Exactly one in ten",
+          ],
+          a: 2,
+          hints: { 0: "This is the intuitive answer and the lecture's main correction to it. Think about which failures you just diagnosed — how many had an attacker?" },
+          why: "The professor's blunt summary: <b>almost zero</b>. Security attention goes to adversaries, while the losses come from shortcut learning, runaway loops and excess permissions.",
+        },
+      ],
+    },
+    // ── 8 ────────────────────────────────────────────────────────────────────
+    {
+      id: "boss",
+      name: "Boss round: the whole picture",
+      problem: "Every idea in this lecture exists because something before it fell short. Match each one to the gap it closes — and get the exam scope straight before you leave.",
+      steps: [
+        {
+          type: "mcq",
+          q: "Deep learning became useful around 2012 because…",
+          opts: [
+            "data, compute and (old) algorithms converged",
+            "a new algorithm was invented",
+            "neural networks were finally proven to work",
+            "programming languages improved",
+          ],
+          a: 0,
+          why: "Three pillars, arriving together. The algorithms were the part that stayed still.",
+        },
+        {
+          type: "mcq",
+          q: "Every machine learning method, in one phrase…",
+          opts: ["pattern matching", "function approximation", "statistical inference", "automated programming"],
+          a: 1,
+          why: "Learn an f that maps X to Y, closely enough to be useful.",
+        },
+        {
+          type: "mcq",
+          q: "Next-token prediction mattered because…",
+          opts: [
+            "it is more accurate than supervised learning",
+            "it removed the labelling bottleneck, so training could scale to the entire internet",
+            "it needs no compute",
+            "it replaced the need for neural networks",
+          ],
+          a: 1,
+          why: "Text labels itself. That is what made internet-scale training possible.",
+        },
+        {
+          type: "mcq",
+          q: "The agentic loop exists to fix…",
+          opts: [
+            "slow training",
+            "an assistant that can answer but cannot act, and cannot recover when its first attempt returns the wrong thing",
+            "vanishing gradients",
+            "the cost of labelling data",
+          ],
+          a: 1,
+          why: "Tools give it hands; the loop lets it notice a bad result and try something else.",
+        },
+        {
+          type: "multi",
+          q: "Select the six dimensions of trustworthiness from the lecture.",
+          opts: ["Truthfulness", "Safety", "Fairness", "Robustness", "Privacy", "Machine ethics", "Latency", "Model size", "Training cost"],
+          correct: [0, 1, 2, 3, 4, 5],
+          hintFn: (sel) => {
+            const perf = [6, 7, 8].filter((i) => sel.indexOf(i) !== -1);
+            if (perf.length) return "Latency, size and cost are <i>performance</i> properties. They say nothing about whether a system can be trusted.";
+            return `You have ${sel.length} of the six. Still missing some — think beyond factual accuracy to who gets treated fairly, whether answers stay consistent, and whose data leaks.`;
+          },
+          why: "<b>Truthfulness, safety, fairness, robustness, privacy, machine ethics.</b> A benchmark score measures none of them — and the professor noted benchmark numbers have become a business in their own right.",
+        },
+        {
+          type: "mcq",
+          q: "Last one, and it's the most useful. Which part of this lecture is the midterm most likely to test?",
+          opts: [
+            "Agent failure modes and the trustworthiness dimensions",
+            "The classical deep learning foundations — the three pillars, function approximation, and the shape logic of y = Xw + b",
+            "The names of the frontier labs mentioned",
+            "The agent skills routing procedure",
+          ],
+          a: 1,
+          hints: {
+            0: "Genuinely useful material, and the professor recommended it for interviews — but he was explicit that it is not where the exam lives.",
+            3: "Same category. Learn it for a conversation with an employer, not for the exam.",
+          },
+          why: "The professor said it plainly: the midterm focuses on <b>classical deep learning</b>, not agent trivia. The agentic half of this lecture is breadth and interview material — worth knowing, but spend your revision time on the foundations.",
+        },
+      ],
+    },
+  ],
+};
+
 export default function Lecture1_Intro({ onBack }) {
   const [openConcept, setOpenConcept] = useState(0);
   const [openTip, setOpenTip] = useState(null);
@@ -3551,6 +4048,7 @@ export default function Lecture1_Intro({ onBack }) {
     { id: "concepts", label: "Concepts" },
     { id: "vocab", label: "Vocabulary" },
     { id: "tips", label: "Exam Tips" },
+    { id: "game", label: "Game" },
   ];
 
   return (
@@ -3666,6 +4164,9 @@ export default function Lecture1_Intro({ onBack }) {
             })}
           </div>
         )}
+
+        {/* Game tab */}
+        {tab === "game" && <LectureGame lectureId="lecture1" game={GAME} />}
       </div>
 
       {/* Floating tutor button — scoped to this lecture */}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import TutorChat from "../TutorChat";
+import LectureGame from "../LectureGame";
 
 // Unit 1 — Foundations accent (tidepool teal), matching App.js LECTURES entry
 const COLOR = "#2fd6ac";
@@ -3593,6 +3594,506 @@ const EXAM_TIPS = [
   { tip: "Harnesses, RSI, interviews, PhD talk: not on the midterm", detail: "All side discussion. Useful context and project inspiration, but skip it when time is tight.", priority: "LOW" },
 ];
 
+// ─── GAME: The Machinery ────────────────────────────────────────────────────
+// Nine levels through the lecture's computational core. Five of this lecture's
+// exam tips are HIGH and four of those are arithmetic, so the student computes
+// the shapes, the collapse, the chain rule, the clipping and the conv size.
+// Every number is the lecture's own, recomputed in node.
+
+const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+const dSigmoid = (x) => sigmoid(x) * (1 - sigmoid(x));
+
+// Level 6: one factor per layer. Sigmoid's best is 0.25; ReLU's is 1.
+const decay = (base, layers) => Math.pow(base, layers);
+const fmtSmall = (v) => (v < 0.001 ? v.toExponential(2) : v.toFixed(4));
+
+const GAME = {
+  title: "The Machinery",
+  tagline: "Nine levels inside the network itself: what a layer computes, why stacking layers alone achieves nothing, how the gradient gets back to the front, and why it dies on the way.",
+  nodePrefix: "L",
+  takeaway: "A network is matrix multiplies separated by non-linearities — remove the non-linearity and the whole stack collapses to one layer; keep it, and the chain rule has to drag the gradient back through every factor you added, which is why the activation you choose decides whether the early layers ever learn at all.",
+  levels: [
+    // ── 1 ────────────────────────────────────────────────────────────────────
+    {
+      id: "shapes",
+      name: "What a layer computes",
+      problem: "Classical ML made you hand-craft the features before any model could touch the data. A network learns them itself — but before that means anything, you need to know what a single layer actually does to its input.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'A handwritten-digit image, <span class="mono">28 × 28</span> pixels, greyscale. A fully connected layer cannot take a grid, so the image is flattened into one long vector first.',
+          q: "How many input features is that?",
+          answer: 784,
+          tol: 0.5,
+          hint: "Flattening keeps every pixel, just laid out in a line. Width times height — and greyscale means a single channel, so nothing else multiplies in.",
+          why: '<span class="mono">28 × 28 = 784</span>. This is the lecture\'s running example, and the professor said these exact numbers have been tested on past midterms.',
+        },
+        {
+          type: "mcq",
+          ctx: 'Those 784 features feed a hidden layer of <span class="mono">128</span> neurons, fully connected.',
+          q: "What shape is the weight matrix W1?",
+          opts: ["128 × 128", "784 × 784", "784 × 128", "128 × 784 × 28"],
+          a: 2,
+          hints: {
+            0: "That would need a 128-value input. You have 784 values arriving.",
+            1: "That maps 784 values to 784 values. The layer has to land on 128.",
+            3: "The 28s were already absorbed when you flattened to 784. They do not come back.",
+          },
+          why: "<b>(number of inputs) × (number of neurons)</b> = 784 × 128. One sample is 1 × 784; multiplying by a 784 × 128 matrix gives 1 × 128, one value per neuron. The <b>inner dimensions must match</b> — that is the rule the exam is really testing.",
+        },
+        {
+          type: "numeric",
+          ctx: 'The full network: <span class="mono">784 → 128 → 10</span>, fully connected, with one bias per neuron.<br><br><span class="mono">W1: 784 × 128 &nbsp; b1: 128</span><br><span class="mono">W2: 128 × 10 &nbsp;&nbsp; b2: 10</span>',
+          q: "How many learnable parameters in total?",
+          answer: 101770,
+          tol: 0.5,
+          hint: "Four numbers to add: 784×128, then 128 biases, then 128×10, then 10 biases. The biases are easy to forget and that is exactly why they are asked about.",
+          why: '<span class="mono">100,352 + 128 + 1,280 + 10 = 101,770</span>. Notice how lopsided it is — the first layer holds <b>98.6%</b> of the parameters, purely because 784 inputs is a lot to connect to. That imbalance is what level 8 comes back to.',
+        },
+      ],
+    },
+    // ── 2 ────────────────────────────────────────────────────────────────────
+    {
+      id: "collapse",
+      name: "Why stacking fails",
+      problem: "You can build layers now, so the obvious move is to stack them and gain depth. Done naively, stacking achieves exactly nothing — and the professor said this is always on the midterm.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'A two-layer network with <b>no</b> activation in between: <span class="mono">f(x) = W2 · W1 · x</span>.<br><br><span class="mono">W1 = [ 1&nbsp; 2 ]&nbsp;&nbsp;&nbsp; W2 = [ 2&nbsp; 0 ]</span><br><span class="mono">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ 0&nbsp; 3 ]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ 1&nbsp; 1 ]</span><br><br>Multiply them: <span class="mono">W2 · W1</span>.',
+          q: "What is the bottom-right entry of the product?",
+          answer: 5,
+          tol: 0.01,
+          hint: "Bottom-right means the bottom row of W2 times the right column of W1: [1, 1] against [2, 3].",
+          why: '<span class="mono">1×2 + 1×3 = 5</span>, so <span class="mono">W2 · W1 = [[2, 4], [1, 5]]</span>. You just turned two layers into <b>one matrix</b> — and that is the entire problem.',
+        },
+        {
+          type: "mcq",
+          q: "So what is a three-layer network with no activations actually equivalent to?",
+          opts: [
+            "A three-layer network — depth always adds power",
+            "A single linear layer, because W3·W2·W1 multiplies out into one matrix W, leaving f(x) = W·x",
+            "A network with three times the capacity",
+            "Nothing — the maths is undefined",
+          ],
+          a: 1,
+          hints: {
+            0: "You just multiplied two matrices into one. What stops you doing it again with a third?",
+            2: "Capacity would have to come from somewhere. Count the degrees of freedom in a single 2×2 matrix.",
+          },
+          why: "Matrix multiplication is <b>associative</b>, so the whole stack folds into one matrix no matter how deep it is. You have built something deep with exactly the expressive power of the linear classifier from Lecture 1 — it still cannot separate anything a straight line cannot.",
+        },
+        {
+          type: "mcq",
+          q: "What stops the collapse?",
+          opts: [
+            "Adding more layers",
+            "Making the matrices larger",
+            "A non-linear activation between layers — once max(0, ·) or a sigmoid sits in the middle, the product can no longer be folded into one matrix",
+            "Using a different loss function",
+          ],
+          a: 2,
+          hints: {
+            0: "More layers fold into the same single matrix. Depth is not the missing ingredient.",
+            1: "A bigger matrix is still one matrix.",
+          },
+          why: 'Write the collapse out explicitly if you are asked: <span class="mono">W3·W2·W1 = W</span>, so without a non-linearity any depth reduces to one layer. The non-linearity is what makes depth mean something.',
+        },
+      ],
+    },
+    // ── 3 ────────────────────────────────────────────────────────────────────
+    {
+      id: "activations",
+      name: "Picking a non-linearity",
+      problem: "So you need a non-linear step between layers. There are several, they are not interchangeable, and each one fails in its own way.",
+      steps: [
+        {
+          type: "slider",
+          q: 'Sweep the input to a sigmoid. Find where its <b>derivative</b> is largest — that is the best gradient it can ever pass backwards.',
+          ctx: '<span class="mono">σ(x) = 1 / (1 + e^(−x))</span> &nbsp;·&nbsp; derivative <span class="mono">σ(x)·(1 − σ(x))</span>',
+          params: [{ id: "x", label: "input x", min: -10, max: 10, step: 0.5, init: -8, format: (v) => v.toFixed(1) }],
+          view: (v) => ({
+            bars: [
+              { label: "σ(x)", value: sigmoid(v.x), max: 1, kind: "attn", display: sigmoid(v.x).toFixed(4) },
+              { label: "σ'(x)", value: dSigmoid(v.x), max: 0.25, kind: v.x === 0 ? "state" : "bad", display: dSigmoid(v.x).toFixed(5) },
+            ],
+            readout: Math.abs(v.x) >= 5 ? "σ is flat out here — the derivative is essentially zero" : Math.abs(v.x) <= 1 ? "the steep part of the curve" : "leaving the steep region",
+          }),
+          check: (v) => {
+            if (v.x === 0) return true;
+            if (Math.abs(v.x) >= 5) return "Out here the curve has gone flat — σ is pinned near 0 or near 1 and the derivative has all but vanished. Move toward the middle.";
+            return "Warmer. The derivative peaks where the curve is steepest, which is where σ(x) sits exactly halfway between its two limits.";
+          },
+          action: "Lock in x",
+          ok: "At <span class=\"mono\">x = 0</span>, σ = 0.5 and the derivative is <b>0.25</b>. Now sit with that number, because it is the whole problem: <b>0.25 is the best sigmoid can ever do</b>. By x = ±5 the derivative is 0.0066. Every layer using sigmoid multiplies the gradient by at most a quarter, and usually far less. Level 6 is where that bill comes due.",
+        },
+        {
+          type: "pick",
+          q: "Three activations, all fed the same input <span class=\"mono\">x = −2</span>. Identify each one from what it returned.",
+          hint: "Ask what each function does to a negative input: kill it outright, squash it toward zero but keep it positive, or let a little of it through still negative?",
+          nextLabel: "Next output",
+          rounds: [
+            {
+              ctx: 'Input <span class="mono">−2</span> → output <span class="mono">0</span>',
+              items: ["ReLU", "Sigmoid", "Leaky ReLU"],
+              answer: 0,
+              why: '<b>ReLU</b>, <span class="mono">max(0, x)</span>. Negative inputs are zeroed outright. Its derivative is 1 on the positive side and 0 on the negative side — trivially cheap, and it does not saturate as x grows. That zero is also its weakness: a neuron stuck with negative inputs outputs 0, has gradient 0, and stops learning for good.',
+            },
+            {
+              ctx: 'Input <span class="mono">−2</span> → output <span class="mono">0.1192</span>',
+              items: ["ReLU", "Sigmoid", "Leaky ReLU"],
+              answer: 1,
+              why: '<b>Sigmoid</b>. Output is squashed into (0, 1) and never reaches either end, which is why it reads like a probability and is still used at output layers. Note it returned something <i>positive</i> for a negative input — a property neither of the others has.',
+            },
+            {
+              ctx: 'Input <span class="mono">−2</span> → output <span class="mono">−0.02</span>',
+              items: ["ReLU", "Sigmoid", "Leaky ReLU"],
+              answer: 2,
+              why: '<b>Leaky ReLU</b>, <span class="mono">0.01x</span> on the negative side. A small slope instead of a hard zero, so a dying neuron keeps a trickle of gradient and can recover. ELU, GELU and SiLU fix the same problem with smoother curves, at the cost of more computation.',
+            },
+          ],
+        },
+        {
+          type: "mcq",
+          q: "Why not just make the negative side a straight line with the same slope as the positive side?",
+          opts: [
+            "It would be too slow to compute",
+            "That would make the whole function linear — and level 2 showed what happens to a stack of linear layers",
+            "Negative values cannot be represented",
+            "It would make the derivative undefined",
+          ],
+          a: 1,
+          hints: { 0: "It would actually be the cheapest option of all. The objection is mathematical, not computational." },
+          why: "A single straight line through both halves is just <span class=\"mono\">f(x) = x</span>, and the stack collapses again. Every variant has to <b>bend somewhere</b> — that kink at zero is not a flaw, it is the entire point.",
+        },
+      ],
+    },
+    // ── 4 ────────────────────────────────────────────────────────────────────
+    {
+      id: "softmax",
+      name: "Scores into probabilities",
+      problem: "The last layer emits raw scores — any size, positive or negative. To predict a class or a next token you need a probability distribution.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'Predicting the next word after <span class="mono">“the light is”</span>. Raw scores: <span class="mono">red 2, blue 1, green 1</span>.<br><br>Softmax exponentiates each score, then divides by the total: <span class="mono">e² / (e² + e¹ + e¹)</span>, where <span class="mono">e² ≈ 7.389</span> and <span class="mono">e¹ ≈ 2.718</span>.',
+          q: "What probability does softmax give “red”? (2 decimal places)",
+          answer: 0.58,
+          tol: 0.015,
+          hint: "Exponentiate first, then divide. The denominator is 7.389 + 2.718 + 2.718 ≈ 12.826.",
+          why: '<span class="mono">7.389 / 12.826 = 0.576</span>, with blue and green on 0.212 each. <b>Worth knowing:</b> the lecture slide showed 0.50 / 0.25 / 0.25 for these scores, which is what you get by plain division (2/4, 1/4, 1/4) — not softmax. The idea on the slide is right; the arithmetic is normalisation, not softmax.',
+        },
+        {
+          type: "mcq",
+          q: "Why exponentiate at all, rather than just dividing each score by the sum?",
+          opts: [
+            "It is faster",
+            "Exponentiating forces every value positive and sharpens the gap between scores — plain division breaks outright on negative scores, which raw outputs frequently are",
+            "It makes the values sum to 1, which division does not",
+            "It is required by the chain rule",
+          ],
+          a: 1,
+          hints: { 2: "Division by the sum also makes things total 1. Ask what happens when one of the scores is negative." },
+          why: 'Scores like <span class="mono">(2, −1, 3)</span> would give nonsense under plain division — you can get negative "probabilities" and a denominator near zero. <span class="mono">e^x</span> is positive for every input, so softmax always returns a valid distribution.',
+        },
+        {
+          type: "mcq",
+          q: "Pulling both blocks together — what are the two parts of the total loss?",
+          opts: [
+            "Training loss + test loss",
+            "Data loss (how far predictions are from the truth) + regularisation (a penalty on large weights)",
+            "Forward loss + backward loss",
+            "Softmax loss + activation loss",
+          ],
+          a: 1,
+          hints: { 0: "Test loss is never optimised — the moment you train on it, it stops being a held-out measure." },
+          why: "Exactly two terms, pulling against each other: fit the data, but keep the weights small. That is the Lecture 2 regularisation idea, now sitting inside the network's objective.",
+        },
+      ],
+    },
+    // ── 5 ────────────────────────────────────────────────────────────────────
+    {
+      id: "backprop",
+      name: "How it learns",
+      problem: "You can run a forward pass and score the result. Nothing so far has changed a single weight — you need the gradient of the loss with respect to every parameter, and there can be millions.",
+      steps: [
+        {
+          type: "order",
+          q: "Put one training step in order.",
+          pieces: ["Forward pass", "Compute the loss", "Backward pass", "Update the weights"],
+          posHints: [
+            "Something has to be predicted before anything can be scored.",
+            "Compare the prediction with the truth to get a single number.",
+            "Now send that number backwards to find each weight's share of the blame.",
+            "Finally, nudge every weight in the direction that lowers the loss.",
+          ],
+          why: "That loop runs once per batch, millions of times. The <b>backward pass</b> is the only part that is new in this lecture.",
+        },
+        {
+          type: "numeric",
+          ctx: 'A tiny computational graph: <span class="mono">f = (x + y) · z</span>, with <span class="mono">x = −2, y = 5, z = −4</span>.<br><br>Name the intermediate value <span class="mono">q = x + y</span>, so <span class="mono">f = q · z</span>.',
+          q: "Forward pass first. What is f?",
+          answer: -12,
+          tol: 0.01,
+          hint: "Add x and y to get q, then multiply by z. Watch the sign — z is negative.",
+          why: '<span class="mono">q = −2 + 5 = 3</span>, then <span class="mono">f = 3 × (−4) = −12</span>. Backprop always needs these forward values stored, which is exactly why training costs far more memory than inference.',
+        },
+        {
+          type: "numeric",
+          ctx: 'Now backwards. You already know <span class="mono">q = 3</span> and <span class="mono">f = q · z</span>.<br><br>At the multiply node: <span class="mono">∂f/∂q = z = −4</span>.<br>At the add node: <span class="mono">∂q/∂x = 1</span>.',
+          q: "Apply the chain rule. What is ∂f/∂x?",
+          answer: -4,
+          tol: 0.01,
+          hint: "Multiply the two gradients along the path: the one arriving from above (−4) times the local one (1).",
+          why: '<span class="mono">∂f/∂x = ∂f/∂q × ∂q/∂x = −4 × 1 = −4</span>. An <b>add gate</b> passes the upstream gradient through unchanged to both inputs, so ∂f/∂y is also −4. A <b>multiply gate</b> hands each input the upstream gradient times the <i>other</i> input.',
+        },
+        {
+          type: "mcq",
+          q: "Generalising: at any node in the graph, the gradient you send backwards is…",
+          opts: [
+            "always 1",
+            "the upstream gradient × the local gradient",
+            "the sum of all gradients in the network",
+            "the learning rate × the loss",
+          ],
+          a: 1,
+          hints: { 0: "That is true for an add gate specifically, which is why it just passes things through. It is not the general rule." },
+          why: "<b>Upstream × local</b>, applied back to front — that is the whole of backpropagation. In practice you never do this by hand: you describe the computational graph and the framework (autograd) differentiates it. The professor said explicitly that <b>you will not be tested on hand-calculating these</b> — know the concept.",
+        },
+      ],
+    },
+    // ── 6 ────────────────────────────────────────────────────────────────────
+    {
+      id: "vanishing",
+      name: "Vanishing gradients",
+      problem: "The chain rule multiplies one factor for every layer the gradient passes through. Level 3 measured sigmoid's best possible factor: 0.25. Now count the layers.",
+      steps: [
+        {
+          type: "explore",
+          q: "Raise the depth and watch what reaches the first layer. Both paths start with a gradient of 1 at the output.",
+          ctx: 'Each layer multiplies the gradient by its activation derivative. Sigmoid contributes <b>at most</b> 0.25 per layer; ReLU contributes exactly 1 on its active side.',
+          params: [{ id: "L", label: "layers", min: 1, max: 20, step: 1, init: 1, format: (v) => String(v) }],
+          view: (v) => ({
+            bars: [
+              { label: "sigmoid", value: Math.max(decay(0.25, v.L), 1e-13), max: 1, kind: "bad", display: fmtSmall(decay(0.25, v.L)) },
+              { label: "ReLU", value: decay(1, v.L), max: 1, kind: "attn", display: "1.0000" },
+            ],
+            readout: `after ${v.L} layer${v.L > 1 ? "s" : ""} → sigmoid carries ${fmtSmall(decay(0.25, v.L))}, ReLU carries 1.0000`,
+            note: v.L >= 10
+              ? "The sigmoid bar is not short — it is <b>gone</b>. The first layers of this network receive no usable learning signal at all."
+              : "Keep going. Watch how fast the sigmoid path falls away.",
+          }),
+          action: "Got it",
+        },
+        {
+          type: "mcq",
+          q: "Why does this hurt the <i>early</i> layers specifically?",
+          opts: [
+            "Early layers have fewer parameters",
+            "The gradient reaching a layer is a product of one factor per layer between it and the loss — so the further back you go, the more small numbers have been multiplied together",
+            "Early layers are updated less often",
+            "Early layers use a different activation",
+          ],
+          a: 1,
+          hints: {
+            2: "Every layer updates on every step. The difference is the <i>size</i> of the update, not how often it arrives.",
+            0: "In the level-1 network the first layer held 98.6% of the parameters — the most to learn, and the weakest signal to learn from.",
+          },
+          why: "Layers near the output get a short chain and keep learning normally. Layers near the input get the longest chain, so their updates shrink toward zero and the network ends up <b>dominated by its last few layers</b>.",
+        },
+        {
+          type: "multi",
+          q: "Which of these actually address <i>vanishing</i> gradients?",
+          opts: ["Use ReLU or one of its variants", "Batch normalisation", "Gradient clipping", "A smaller learning rate", "Add more layers"],
+          correct: [0, 1],
+          hintFn: (sel) => {
+            if (sel.indexOf(2) !== -1) return "Gradient clipping is the fix for the <i>opposite</i> problem. It caps gradients that are too large — it cannot rebuild a signal that has already shrunk to nothing.";
+            if (sel.indexOf(4) !== -1) return "More layers means a longer chain, which makes vanishing strictly worse.";
+            if (sel.indexOf(3) !== -1) return "A smaller learning rate shrinks every update further. The problem is that the early updates are already too small.";
+            return "You have one of the two. The other normalises activations during training so they stay in a range where gradients survive.";
+          },
+          why: "<b>ReLU-family activations</b> (derivative 1 on the active side, so nothing shrinks) and <b>batch normalisation</b> (keeps activations in the useful range). Clipping is for exploding gradients — mixing those two up is the classic slip here. Once a signal has vanished there is nothing left to rescale, which is why the fix has to be structural.",
+        },
+      ],
+    },
+    // ── 7 ────────────────────────────────────────────────────────────────────
+    {
+      id: "exploding",
+      name: "Exploding gradients",
+      problem: "Multiply many numbers below 1 and the gradient vanishes. Multiply many numbers above 1 and it does the opposite — one update launches the weights somewhere useless and the loss goes to infinity.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'A gradient vector <span class="mono">g = [6, 8]</span>. Its norm is <span class="mono">√(6² + 8²) = 10</span>, well over the threshold <span class="mono">τ = 5</span>.<br><br>Clipping rescales it: <span class="mono">g ← (τ / ‖g‖) · g</span>.',
+          q: "After clipping, what is the first component?",
+          answer: 3,
+          tol: 0.01,
+          hint: "The scale factor is 5/10 = 0.5. Apply it to the first component.",
+          why: '<span class="mono">0.5 × [6, 8] = [3, 4]</span>, whose norm is exactly 5. Both components shrank by the <i>same</i> factor — which is the key property.',
+        },
+        {
+          type: "mcq",
+          q: "What did clipping preserve, and what did it change?",
+          opts: [
+            "It changed the direction and kept the size",
+            "It kept the direction and capped the size — you still step the same way, just less far",
+            "It zeroed the largest component",
+            "It reversed the gradient",
+          ],
+          a: 1,
+          hints: { 2: "Compare [6, 8] with [3, 4] — both components survived, in the same ratio." },
+          why: "[6, 8] and [3, 4] point the <b>same way</b>; only the length changed. Clipping never misleads the optimiser about <i>where</i> to go, it only refuses to let it leap.",
+        },
+        {
+          type: "mcq",
+          q: "Why is exploding considered the easier of the two problems?",
+          opts: [
+            "It happens less often",
+            "A too-large gradient still carries the right direction, so you can simply scale it down. A vanished gradient has no information left to rescale — the architecture has to change",
+            "It only affects the last layer",
+            "Modern GPUs handle it automatically",
+          ],
+          a: 1,
+          hints: { 0: "Frequency is not the point. Think about what is left to work with in each case." },
+          why: "The professor's framing: you can survive losing <i>some</i> money in the market, but not all of it. A huge gradient is recoverable with one line of code; a vanished one needs a different activation or batch norm.",
+        },
+      ],
+    },
+    // ── 8 ────────────────────────────────────────────────────────────────────
+    {
+      id: "cnn",
+      name: "Into CNNs",
+      problem: "Everything so far assumed a flattened vector. Point a fully connected layer at a real image and two things go wrong at once.",
+      steps: [
+        {
+          type: "mcq",
+          ctx: 'A <span class="mono">200 × 200</span> image is 40,000 pixels. Connect that to 40,000 hidden units and the first layer alone needs roughly <b>1.6 billion</b> weights.',
+          q: "Parameter count is one problem. What is the other?",
+          opts: [
+            "The image has to be greyscale",
+            "Flattening destroys spatial structure — neighbouring pixels are strongly related, and treating each as an independent input throws that away",
+            "Fully connected layers cannot use ReLU",
+            "The image must be square",
+          ],
+          a: 1,
+          hints: { 0: "Colour would make it worse (three channels), but greyscale images have exactly the same structural problem." },
+          why: "Two failures together: an <b>untrainable parameter count</b>, and the loss of the fact that nearby pixels belong together. Convolution fixes both at once.",
+        },
+        {
+          type: "numeric",
+          ctx: 'A convolution layer slides a small filter across the image instead of connecting everything to everything.<br><br>Input <span class="mono">32 × 32</span>, filter <span class="mono">5 × 5</span>, stride <span class="mono">1</span>, no padding.<br><br><span class="mono">output = (N − F) / stride + 1</span>',
+          q: "What is the output width?",
+          answer: 28,
+          tol: 0.5,
+          hint: "Substitute directly: N = 32, F = 5, stride = 1. Do the subtraction before the division.",
+          why: '<span class="mono">(32 − 5)/1 + 1 = 28</span>. The professor said he would test this calculation. Lecture 4 goes much deeper — padding, larger strides, parameter counting — but this is the formula underneath all of it.',
+        },
+        {
+          type: "mcq",
+          q: "Convolution gets there in two moves. What are they?",
+          opts: [
+            "Shrink the image, then flatten it",
+            "Connect each unit to a small local patch, then reuse the same weights at every position",
+            "Use fewer layers, then add dropout",
+            "Convert to greyscale, then normalise",
+          ],
+          a: 1,
+          hints: { 0: "Shrinking throws away information outright. Convolution keeps the whole image and changes how it is <i>wired</i>." },
+          why: "<b>Local connectivity</b> cuts the parameter count enormously; <b>weight sharing</b> cuts it again and encodes the assumption that a useful feature is worth detecting anywhere in the image. That shared sliding patch is the filter.",
+        },
+      ],
+    },
+    // ── 9 ────────────────────────────────────────────────────────────────────
+    {
+      id: "boss",
+      name: "Boss round: the whole machine",
+      problem: "Each idea here exists because the previous one left a gap. Match them up — and sort what he will test from what he recommended for interviews.",
+      steps: [
+        {
+          type: "mcq",
+          q: "The headline difference between deep learning and the classical ML of Lecture 2 is…",
+          opts: [
+            "deep learning uses more data",
+            "automated feature extraction — you feed in raw data and the network learns the features itself, instead of engineers hand-crafting them",
+            "deep learning does not need a loss function",
+            "deep learning always performs better",
+          ],
+          a: 1,
+          hints: { 0: "It does, but that is a consequence. What <i>job</i> stopped being done by hand?" },
+          why: "The professor's own example: in industry the first question was never “which model?”, it was “what features do you have?”. Deep learning absorbs that step — which is why labs will train on almost any raw data.",
+        },
+        {
+          type: "mcq",
+          q: "Non-linear activations exist because…",
+          opts: [
+            "they speed up training",
+            "without them any stack of layers multiplies into a single matrix, so depth buys nothing",
+            "they prevent overfitting",
+            "they make gradients larger",
+          ],
+          a: 1,
+          why: "The one he said is always on the midterm. Be ready to write the collapse out.",
+        },
+        {
+          type: "mcq",
+          q: "Sigmoid's derivative peaks at 0.25 and falls to near zero outside about ±5. The practical consequence is…",
+          opts: [
+            "it trains faster than ReLU",
+            "deep networks using it suffer vanishing gradients, so ReLU became the default for hidden layers",
+            "it cannot be used at all",
+            "it only works on images",
+          ],
+          a: 1,
+          hints: { 2: "It is still standard at output layers, where you want a value in (0, 1) and there is no long chain behind it." },
+          why: "Hidden layers get ReLU; sigmoid survives where its (0,1) range is the point rather than a liability.",
+        },
+        {
+          type: "mcq",
+          q: "Training costs far more memory than inference because…",
+          opts: [
+            "the model is larger during training",
+            "backpropagation needs the intermediate activations from the forward pass kept in memory to compute gradients",
+            "training uses higher precision numbers",
+            "inference skips most layers",
+          ],
+          a: 1,
+          hints: { 0: "Same model, same weights. Something <i>extra</i> has to be stored during training." },
+          why: "Inference is a forward pass and can be thrown away as it goes, which is why a large model can run on a single machine at home. The fixes he mentioned — <b>LoRA</b> (freeze most parameters, train a small addition) and <b>agent memory</b> (store knowledge outside the weights) — are interview material rather than exam material.",
+        },
+        {
+          type: "mcq",
+          q: "Clipping is to exploding gradients as ____ is to vanishing gradients.",
+          opts: [
+            "a smaller learning rate",
+            "changing the activation function (or adding batch norm)",
+            "more training data",
+            "a bigger batch size",
+          ],
+          a: 1,
+          hints: { 0: "That shrinks updates further, and vanishing already means the updates are too small." },
+          why: "One is a patch you apply to a number; the other requires changing the architecture, because a vanished signal cannot be recovered.",
+        },
+        {
+          type: "mcq",
+          q: "Last one. Which part of this lecture did the professor say is <b>not</b> examinable?",
+          opts: [
+            "Backpropagation and the chain rule",
+            "The side discussions — harness engineering, recursive self-improvement, the interview and PhD advice",
+            "Activation functions",
+            "Weight matrix shapes",
+          ],
+          a: 1,
+          hints: {
+            0: "The <i>concepts</i> are examinable — he only ruled out hand-calculating the derivatives.",
+            3: "The opposite: he said these exact numbers have been tested before.",
+          },
+          why: "Useful context and genuinely good career material, but not revision. Spend the time on shapes, non-linearity, activations, gradients and the convolution formula — that is where all five HIGH tips live.",
+        },
+      ],
+    },
+  ],
+};
+
 export default function Lecture3_NeuralNetworks({ onBack }) {
   const [openConcept, setOpenConcept] = useState(0);
   const [openTip, setOpenTip] = useState(null);
@@ -3603,6 +4104,7 @@ export default function Lecture3_NeuralNetworks({ onBack }) {
     { id: "concepts", label: "Concepts" },
     { id: "vocab", label: "Vocabulary" },
     { id: "tips", label: "Exam Tips" },
+    { id: "game", label: "Game" },
   ];
 
   return (
@@ -3722,6 +4224,9 @@ export default function Lecture3_NeuralNetworks({ onBack }) {
             })}
           </div>
         )}
+
+        {/* Game tab */}
+        {tab === "game" && <LectureGame lectureId="lecture3" game={GAME} />}
       </div>
 
       {/* Floating tutor button — scoped to this lecture */}

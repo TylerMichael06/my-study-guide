@@ -1,5 +1,6 @@
 import { useState } from "react";
 import TutorChat from "../TutorChat";
+import LectureGame from "../LectureGame";
 
 // Unit 1 — Foundations accent (tidepool teal), matching App.js LECTURES entry
 const COLOR = "#2fd6ac";
@@ -3318,6 +3319,549 @@ const EXAM_TIPS = [
   { tip: "Memorization and overfitting are distinct phenomena", detail: "A 2026 slide addition: validation error can improve while verbatim memorization grows. In fine-tuning across 1.4B-70B models, memorization rose sharply in early epochs, sometimes before validation perplexity peaked.", priority: "LOW" },
 ];
 
+// ─── GAME: Ground Rules ─────────────────────────────────────────────────────
+// Nine levels down the lecture's own causal chain: you arrive holding a model
+// with no way to judge it, and each idea closes the gap the last one opened.
+// Every number below is the lecture's own, recomputed in node.
+
+// Level 2: training error falls forever; validation error turns up at degree 3.
+const trainErr = (d) => 0.5 / (d * d);
+const valErr = (d) => 0.5 / (d * d) + 0.01 * Math.pow(d - 1, 2);
+
+// Level 5: more trees only ever helps; more depth turns on you past 6.
+const forestErr = (t, d) => 0.12 + 0.002 * Math.pow(d - 6, 2) + 0.25 / Math.sqrt(t);
+
+// Level 4: the lecture's 40 loans — 22 safe, 18 risky.
+const loanBars = (groups) =>
+  groups.map((g) => ({
+    label: g.name,
+    value: Math.min(g.safe, g.risky),
+    max: 14,
+    kind: "bad",
+    display: `${Math.min(g.safe, g.risky)} wrong`,
+  }));
+
+const GAME = {
+  title: "Ground Rules",
+  tagline: "Nine levels on the machinery underneath every model you will build: how to score a guess, why a perfect fit is a warning sign, and why an accuracy of 99% can mean your model is useless.",
+  nodePrefix: "",
+  takeaway: "A loss tells you how to train, a metric tells you whether it worked, and the gap between them is where models quietly fail — so judge every model on held-out data, with a metric that survives the class balance you actually have.",
+  levels: [
+    // ── 1 ────────────────────────────────────────────────────────────────────
+    {
+      id: "loss",
+      name: "Scoring a guess",
+      problem: "Last lecture ended with a model, f(x) = Wx + b, and no way to say whether a particular W is any good. A bad W that predicts “cat” for every image is still a valid W.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'Two models, same three images, same ground truth. How far each prediction lands from the truth:<br><br><span class="mono">Model A errors → 2, 2, 2</span><br><span class="mono">Model B errors → 0, 0, 5</span><br><br><b>L1 loss</b> adds up the absolute errors: <span class="mono">|e₁| + |e₂| + |e₃|</span>.',
+          q: "What is Model B's L1 loss?",
+          answer: 5,
+          tol: 0.01,
+          hint: "No squaring in L1 — just add the three errors as they are. Two of them are zero.",
+          why: '<span class="mono">0 + 0 + 5 = 5</span>. Model A scores <span class="mono">2 + 2 + 2 = 6</span>. So under L1, <b>Model B is better</b> — it is perfect on two images and the one big miss is counted at face value.',
+        },
+        {
+          type: "numeric",
+          ctx: 'Same two models. <b>L2 loss</b> squares each error first: <span class="mono">e₁² + e₂² + e₃²</span>.<br><br><span class="mono">Model A errors → 2, 2, 2</span><br><span class="mono">Model B errors → 0, 0, 5</span>',
+          q: "What is Model B's L2 loss?",
+          answer: 25,
+          tol: 0.01,
+          hint: "Square each error before adding. One error of 5 becomes 25 on its own.",
+          why: '<span class="mono">0 + 0 + 25 = 25</span>. Model A scores <span class="mono">4 + 4 + 4 = 12</span>. Under L2 the verdict <b>flips</b> — now Model A wins.',
+        },
+        {
+          type: "mcq",
+          ctx: 'Collecting the four numbers: <span class="mono">A → L1 6, L2 12</span> &nbsp;·&nbsp; <span class="mono">B → L1 5, L2 25</span>.',
+          q: "What does this disagreement tell you?",
+          opts: [
+            "One of the two losses must have been computed wrongly",
+            "The choice of loss is a real modelling decision — L2 squares errors, so it punishes a single large miss far more than several small ones",
+            "L2 is simply the better loss and L1 should be avoided",
+            "The models are equally good and the losses are noise",
+          ],
+          a: 1,
+          hints: {
+            0: "Both are correct. Recompute them if you like — the arithmetic is sound. The disagreement is real.",
+            2: "Neither is better in the abstract. Ask what you want punished: one catastrophic error, or lots of small ones?",
+          },
+          why: "<b>Same predictions, same truth, opposite verdicts.</b> L1 treats all errors proportionally; squaring makes L2 hate any single large miss. Choosing a loss is choosing what kind of mistake you can live with.",
+        },
+      ],
+    },
+    // ── 2 ────────────────────────────────────────────────────────────────────
+    {
+      id: "overfit",
+      name: "The training-fit trap",
+      problem: "You have a loss, so the obvious move is to minimise it. But you can only ever average the loss over the samples you happen to have — and driving that to zero is the exact thing you must not do.",
+      steps: [
+        {
+          type: "slider",
+          q: "Turn up the model's complexity. Stop at the setting where it will generalise best.",
+          ctx: 'Each setting fits the same data with a more flexible model. <b>Training error</b> is measured on the data it fitted; <b>validation error</b> on data it has never seen.',
+          params: [{ id: "d", label: "complexity", min: 1, max: 10, step: 1, init: 1, format: (v) => "degree " + v }],
+          view: (v) => ({
+            bars: [
+              { label: "training", value: trainErr(v.d), max: 0.55, kind: "attn", display: trainErr(v.d).toFixed(3) },
+              { label: "validation", value: Math.min(valErr(v.d), 0.55), max: 0.55, kind: v.d === 3 ? "state" : "bad", display: valErr(v.d).toFixed(3) },
+            ],
+            readout: v.d === 1 ? "both errors high — the model is too simple to capture the pattern" : trainErr(v.d) < valErr(v.d) - 0.02 ? "the two bars have separated: it is fitting things that are not in the new data" : "both still falling together",
+          }),
+          check: (v) => {
+            if (v.d === 3) return true;
+            if (v.d < 3) return "Validation error is still falling, and the two bars are still moving together. There is more real pattern left to capture — keep going.";
+            return "Look at the two bars. Training error is still dropping, but validation has turned <i>upward</i> — you have gone past the sweet spot and started fitting noise.";
+          },
+          action: "Lock in this complexity",
+          ok: "Degree 3 is the sweet spot. Notice what happened either side of it: training error <b>never stops falling</b> — at degree 10 it is near zero — while validation error bottoms out and then climbs. That divergence <i>is</i> overfitting. If you had only ever looked at training error, you would have picked the most complex model and shipped the worst one.",
+        },
+        {
+          type: "mcq",
+          q: "What is the signature of overfitting on those two curves?",
+          opts: [
+            "Both errors rise together",
+            "Training error keeps falling while validation error bottoms out and turns upward",
+            "Both errors fall together forever",
+            "Validation error falls faster than training error",
+          ],
+          a: 1,
+          hints: {
+            0: "That is underfitting territory, at the far left — the model is too simple for either set.",
+            2: "If that happened there would be no problem to solve, and no reason to hold data back.",
+          },
+          why: "The <b>divergence point</b> is what you are looking for. Occam's razor, operationalised: among models that explain the data, prefer the simplest.",
+        },
+        {
+          type: "mcq",
+          q: "Are memorisation and overfitting the same thing?",
+          opts: [
+            "Yes — memorising the training data is the definition of overfitting",
+            "No. Overfitting means validation performance <i>worsens</i>. A model can memorise training examples verbatim while validation error is still improving",
+            "No — memorisation only happens in small models",
+            "They are the same, but memorisation is the term used for text",
+          ],
+          a: 1,
+          hints: { 0: "The intuitive answer, and the lecture's 2026 slides exist specifically to correct it. The two can be measured separately — and they come apart." },
+          why: "They <b>come apart</b>. In fine-tuning runs from 1.4B to 70B parameters, verbatim memorisation rose sharply in the early epochs, sometimes before validation perplexity was at its best. One number is not enough: track held-out performance <i>and</i> leakage.",
+        },
+      ],
+    },
+    // ── 3 ────────────────────────────────────────────────────────────────────
+    {
+      id: "reg",
+      name: "Regularisation",
+      problem: "You found the right complexity by eye, on a slider. That does not scale — you need the optimiser itself to prefer simpler models while it trains.",
+      steps: [
+        {
+          type: "pick",
+          q: "Three models trained on identical data, three different penalties. Read the learned weights and name the penalty.",
+          hint: "Look at what happened to the <i>small</i> weights. Were they driven to exactly zero, merely shrunk, or left to grow however large they liked?",
+          nextLabel: "Next model",
+          rounds: [
+            {
+              ctx: 'Learned weights: <span class="mono">[ 0.00, 0.00, 3.10, 0.00, −2.40 ]</span>',
+              items: ["L1 (lasso)", "L2 (ridge)", "No penalty"],
+              answer: 0,
+              why: '<b>L1, lasso.</b> Penalising <i>absolute</i> values drives weak weights to <b>exactly zero</b>, not merely small. Three of five features have been switched off entirely — the model selected its own features, which is why L1 is valuable in high dimensions and easier to interpret.',
+            },
+            {
+              ctx: 'Learned weights: <span class="mono">[ 0.42, −0.31, 0.88, 0.19, −0.54 ]</span>',
+              items: ["L1 (lasso)", "L2 (ridge)", "No penalty"],
+              answer: 1,
+              why: '<b>L2, ridge.</b> Everything is small, but <i>nothing</i> is zero. Penalising the squared magnitude shrinks weights toward zero without ever quite getting there — so L2 keeps every feature, just quietly.',
+            },
+            {
+              ctx: 'Learned weights: <span class="mono">[ 12.40, −9.80, 31.20, −17.50, 22.10 ]</span>',
+              items: ["L1 (lasso)", "L2 (ridge)", "No penalty"],
+              answer: 2,
+              why: '<b>No penalty.</b> Nothing is stopping the weights growing, and large weights mean sharp, contorted decision surfaces where a tiny change in input swings the output wildly. That is the behaviour regularisation exists to prevent.',
+            },
+          ],
+        },
+        {
+          type: "mcq",
+          q: "What does the full objective look like once you add a penalty?",
+          opts: [
+            "The penalty replaces the data loss",
+            "Data loss + penalty — two terms pulling against each other on purpose: “fit the data” versus “keep the weights small”",
+            "The penalty is applied after training finishes",
+            "The penalty is subtracted from the data loss",
+          ],
+          a: 1,
+          hints: { 3: "Subtracting it would <i>reward</i> large weights — the opposite of the goal." },
+          why: "The tension is deliberate. Left alone, the data term will contort the weights to chase every training point; the penalty term is what holds it back.",
+        },
+        {
+          type: "mcq",
+          ctx: 'For linear least squares there is an exact closed-form answer: <span class="mono">W = (XᵀX)⁻¹ Xᵀy</span>. Nobody uses it.',
+          q: "Why not?",
+          opts: [
+            "It gives the wrong answer",
+            "Inverting XᵀX is brutally expensive at scale — and it is not always invertible, which is the case where a penalty picks out a sensible solution",
+            "It only works for classification",
+            "It was proved incorrect",
+          ],
+          a: 1,
+          hints: { 0: "It is exactly right — that is the frustrating part. The obstacle is practical, not mathematical." },
+          why: "Two obstacles. The inversion is <b>computationally infeasible</b> on large matrices, and when you have more unknowns than equations the system is underdetermined with many valid solutions — a penalty is what chooses a well-behaved one. This is why the whole field runs on gradient descent instead.",
+        },
+      ],
+    },
+    // ── 4 ────────────────────────────────────────────────────────────────────
+    {
+      id: "trees",
+      name: "Decision trees",
+      problem: "Linear models can only draw straight boundaries, and plenty of real data cannot be split by any straight line. A decision tree takes a completely different route: it asks a sequence of questions.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: '40 loan applications: <b>22 safe, 18 risky</b>. Split them on credit history, then predict the majority label in each branch:<br><br><span class="mono">excellent → 9 safe, &nbsp;0 risky</span><br><span class="mono">fair &nbsp;&nbsp;&nbsp;&nbsp; → 9 safe, &nbsp;4 risky</span><br><span class="mono">poor &nbsp;&nbsp;&nbsp;&nbsp; → 4 safe, 14 risky</span>',
+          q: "What is the classification error of this split? (wrong predictions ÷ 40)",
+          answer: 0.2,
+          tol: 0.005,
+          hint: "In each branch you predict the majority, so the minority are your mistakes: 0 in excellent, 4 in fair, 4 in poor. Add them, divide by 40.",
+          why: '<span class="mono">(0 + 4 + 4) / 40 = 8/40 = 0.20</span>. Note the excellent branch is already <b>pure</b> — every applicant there is safe, so that branch is finished and needs no further questions.',
+        },
+        {
+          type: "mcq",
+          ctx: 'Splitting the same 40 loans on <b>term length</b> instead gives <span class="mono">3-year → 16 safe, 4 risky</span> and <span class="mono">5-year → 6 safe, 14 risky</span> — an error of <span class="mono">10/40 = 0.25</span>.',
+          q: "Which feature does the algorithm split on first, and how did it decide?",
+          opts: [
+            "Term, because it makes fewer branches",
+            "Credit, because its error of 0.20 is lower than term's 0.25 — exactly the same framework as before: pick a loss and minimise it",
+            "Whichever feature appears first in the data",
+            "Both, simultaneously",
+          ],
+          a: 1,
+          hints: { 0: "Branch count is not the criterion. What number did you just compute for each candidate split?" },
+          why: "Same machinery as the rest of the course — define an error and minimise it. Gini index and mutual information are alternative criteria, similar in spirit.",
+        },
+        {
+          type: "mcq",
+          q: "The tree picks the single best split at each node, then recurses. What is the catch?",
+          opts: [
+            "It is slow to train",
+            "It is <b>greedy</b>, and greedy is not optimal — the split that looks best right now need not belong to the best overall tree. Finding the smallest tree is NP-hard",
+            "It can only handle two classes",
+            "It cannot handle continuous features",
+          ],
+          a: 1,
+          hints: { 0: "Greedy splitting is actually fast. The cost is in the quality of the result, not the time." },
+          why: "A compact, quotable answer: <b>greedy, and greedy is not optimal, because finding the smallest tree is NP-hard</b>. For trees, <b>max depth</b> is the main knob controlling complexity.",
+        },
+      ],
+    },
+    // ── 5 ────────────────────────────────────────────────────────────────────
+    {
+      id: "ensemble",
+      name: "Ensembles",
+      problem: "One deep tree is unstable. Resample the training data slightly and its predictions swing — high variance. The fix is to grow many trees and average them.",
+      steps: [
+        {
+          type: "slider",
+          q: "Tune the forest. Get validation error below <span class=\"mono\">0.160</span> — then notice that the two knobs behave completely differently.",
+          params: [
+            { id: "t", label: "n_estimators", min: 1, max: 200, step: 1, init: 1, format: (v) => String(v) },
+            { id: "d", label: "max_depth", min: 1, max: 20, step: 1, init: 14, format: (v) => String(v) },
+          ],
+          view: (v) => {
+            const e = forestErr(v.t, v.d);
+            return {
+              bars: [
+                { label: "validation", value: Math.min(e, 0.6), max: 0.6, kind: e <= 0.16 ? "attn" : "bad", display: e.toFixed(3) },
+                { label: "target", value: 0.16, max: 0.6, kind: "state", display: "0.160" },
+              ],
+              readout: `${v.t} tree${v.t > 1 ? "s" : ""} at depth ${v.d} → error ${e.toFixed(3)}`,
+              note: "Try moving each slider on its own and watch which direction the bar goes.",
+            };
+          },
+          check: (v) => {
+            if (forestErr(v.t, v.d) <= 0.16) return true;
+            if (v.d > 10) return "Depth is the knob that <i>overfits</i>. Every extra level lets each tree carve the training data more finely, and validation error climbs. Bring it down.";
+            if (v.d < 3) return "Too shallow now — these trees are too simple to capture the pattern at all. That is bias, not variance.";
+            return "Depth is in a sensible range, so the error that is left is <i>variance</i>. Averaging more trees is what cancels it out — push the tree count up.";
+          },
+          action: "Evaluate the forest",
+          ok: "There it is, and the asymmetry is the point. <b>More trees only ever helped</b>: at depth 6 the error falls 0.370 → 0.145 → 0.138 as you go 1 → 100 → 200 trees, flattening toward a floor. <b>More depth turned on you</b>: at 100 trees, going from depth 6 to depth 20 took the error from 0.145 to 0.537. Adding trees converges; adding depth overfits. That is the one line to remember about forests.",
+        },
+        {
+          type: "mcq",
+          q: "Bagging draws n rows <i>with replacement</i> to build each tree's training set. Roughly what fraction of the original rows end up in any one sample, and what are the rest good for?",
+          opts: [
+            "100% — every row appears exactly once",
+            "About 63% unique rows; the ones left out form that tree's <b>out-of-bag</b> set, which is free validation data",
+            "About 50%, and the rest are discarded",
+            "About 90%, and the rest are used for testing the whole forest",
+          ],
+          a: 1,
+          hints: { 0: "With replacement means rows can repeat — so some rows appear several times and others not at all." },
+          why: 'From <span class="mono">1 − (1 − 1/n)ⁿ → 1 − 1/e ≈ 0.632</span>. The left-out rows never trained that tree, so they can score it for free. A <b>random forest</b> is bagging plus a random subset of features at every node.',
+        },
+        {
+          type: "mcq",
+          q: "Boosting does something different from bagging. What?",
+          opts: [
+            "It trains the same tree many times",
+            "It fits each new model to the <i>residuals</i> of the current ensemble, sequentially — correcting what the ensemble still gets wrong, rather than averaging independent trees",
+            "It removes trees that perform badly",
+            "It is bagging with a different random seed",
+          ],
+          a: 1,
+          hints: { 3: "Bagging's trees are independent and get averaged. Boosting's are built in sequence, each aware of the last." },
+          why: "XGBoost, LightGBM and CatBoost are three implementations of this one gradient-boosting family — they differ in engineering and defaults, not in the underlying algorithm.",
+        },
+      ],
+    },
+    // ── 6 ────────────────────────────────────────────────────────────────────
+    {
+      id: "metrics",
+      name: "When accuracy lies",
+      problem: "A loss tells you how to train. It does not tell you whether the result is useful. And when the thing you care about is rare, the most natural metric becomes actively misleading.",
+      steps: [
+        {
+          type: "numeric",
+          ctx: 'A screening problem: <span class="mono">10,000 cases, 1% of them positive</span> — so 100 positives and 9,900 negatives. A lazy model predicts <b>negative for everything</b> and is never right about a single positive case.',
+          q: "What is its accuracy? (give a decimal, e.g. 0.85)",
+          answer: 0.99,
+          tol: 0.005,
+          hint: "Accuracy is simply correct ÷ total. It gets every negative right and every positive wrong — so how many of the 10,000 did it call correctly?",
+          why: '<span class="mono">9,900 / 10,000 = 0.99</span>. <b>99% accurate and completely useless.</b> It has never once identified the thing you built it to find. This is the lottery example from the lecture: predict “nobody wins” and be almost perfectly accurate.',
+        },
+        {
+          type: "numeric",
+          ctx: 'A real model now scores all 10,000 and you take the <b>top 1,000</b> as your positive calls. All 100 true positives are inside that cut — so recall is a perfect <span class="mono">1.00</span>.',
+          q: "What is the precision? (correct positive calls ÷ total positive calls)",
+          answer: 0.1,
+          tol: 0.005,
+          hint: "You flagged 1,000 cases. Only 100 of them were really positive. The other 900 are false alarms.",
+          why: '<span class="mono">100 / 1,000 = 0.10</span>. Recall is perfect, precision is dreadful: <b>nine out of ten flags are false alarms</b>. Precision and recall trade off against each other, which is why F1 (their harmonic mean) exists.',
+        },
+        {
+          type: "mcq",
+          ctx: 'Same cut. <span class="mono">ROC-AUC reads 0.954</span> — looks excellent. <span class="mono">PR-AUC reads 0.098</span> — looks terrible. Both are computed correctly from the same predictions.',
+          q: "How can both be right?",
+          opts: [
+            "One of them must be a bug",
+            "They have different chance baselines. ROC-AUC's chance line is 0.50, but PR-AUC's is the positive rate — here 0.01 — so a comfortable ROC hides 900 false alarms among 9,900 negatives",
+            "ROC-AUC is always the more reliable of the two",
+            "PR-AUC only works on balanced data",
+          ],
+          a: 1,
+          hints: {
+            2: "It is the one that looks reassuring here, which is exactly the problem. Ask what each is measured <i>against</i>.",
+            3: "The reverse — PR-AUC is the one that stays honest when classes are imbalanced.",
+          },
+          why: "900 false alarms among 9,900 negatives is an FPR of only 0.091, so ROC barely notices. But those same 900 are what decides whether anyone can actually use the system. <b>On rare-positive problems, report both.</b>",
+        },
+      ],
+    },
+    // ── 7 ────────────────────────────────────────────────────────────────────
+    {
+      id: "knn",
+      name: "kNN, and choosing k",
+      problem: "Every model so far had to be trained. This one has no training phase at all — but it hands you a knob, k, and both of the obvious ways to choose it are wrong.",
+      steps: [
+        {
+          type: "pick",
+          q: "One query point. Its nearest neighbours, in order of distance, are: <span class=\"mono\">+ &nbsp;− &nbsp;− &nbsp;+ &nbsp;+ &nbsp;+ &nbsp;−</span>. Take a majority vote among the closest k.",
+          hint: "Count only the first k in that list, then take the majority. Nothing else about the point changes.",
+          nextLabel: "Change k",
+          rounds: [
+            {
+              ctx: '<span class="mono">k = 1</span> → neighbours considered: <span class="mono">+</span>',
+              items: ["positive", "negative"],
+              answer: 0,
+              why: "<b>positive.</b> With k = 1 the single closest neighbour decides everything — no averaging, no smoothing.",
+            },
+            {
+              ctx: '<span class="mono">k = 3</span> → neighbours considered: <span class="mono">+ &nbsp;− &nbsp;−</span>',
+              items: ["positive", "negative"],
+              answer: 1,
+              why: "<b>negative.</b> Two negatives outvote one positive. Same point, same data, and the answer has <b>flipped</b>.",
+            },
+            {
+              ctx: '<span class="mono">k = 5</span> → neighbours considered: <span class="mono">+ &nbsp;− &nbsp;− &nbsp;+ &nbsp;+</span>',
+              items: ["positive", "negative"],
+              answer: 0,
+              why: "<b>positive again.</b> Three to two. The prediction flipped twice without a single data point changing — k is not a detail, it <i>is</i> the model.",
+            },
+          ],
+        },
+        {
+          type: "mcq",
+          q: "So which direction does k push the model?",
+          opts: [
+            "Small k underfits, large k overfits",
+            "Small k <b>overfits</b> — the boundary is jagged and chases individual points. Large k <b>underfits</b> — the boundary smooths out until it carries no signal",
+            "k has no effect on complexity, only on speed",
+            "Both small and large k overfit",
+          ],
+          a: 1,
+          hints: {
+            0: "This is the exact reversal, and it is the single most common slip. Picture k = 1: the boundary wraps around every single training point. Is that too flexible, or too rigid?",
+            2: "It does change speed, but the decision boundary visibly changes shape too — as you just saw, the <i>answer</i> changed.",
+          },
+          why: "k controls complexity. At k = 1 the boundary contorts around every point; by k = 100 it has smoothed into something that ignores local structure. In the extreme, k = N just predicts the majority class every time.",
+        },
+        {
+          type: "mcq",
+          q: 'Idea: pick the k that performs best on the <b>training</b> data. What goes wrong?',
+          opts: [
+            "Nothing — this is standard practice",
+            "<span class=\"mono\">k = 1</span> always scores perfectly on training data, since every point is its own nearest neighbour. It tells you nothing",
+            "Training data is too small to measure on",
+            "It is too slow to evaluate",
+          ],
+          a: 1,
+          hints: { 0: "Try it mentally with k = 1 and ask what score you would get on the data the model has memorised." },
+          why: "Every training point is distance zero from itself, so k = 1 is perfect by construction, every time. A metric that always picks the same answer is not a metric.",
+        },
+        {
+          type: "mcq",
+          q: 'Fine — pick the k that performs best on the <b>test</b> set instead. The slides have two words for this.',
+          opts: [
+            "“Best practice”",
+            "“Never do this” — once you have chosen anything using the test set, it is no longer an honest estimate of performance on unseen data",
+            "“Optional but recommended”",
+            "“Only for small datasets”",
+          ],
+          a: 1,
+          hints: { 3: "Dataset size does not launder the leak. Once the test set has influenced a choice, it has stopped being held out." },
+          why: "Split into <b>train / validation / test</b>: fit on train, tune on validation, touch test exactly once at the end. <b>Cross-validation</b> rotates which fold is validation and averages — valuable on small datasets, rarely needed in deep learning. And it all assumes the three splits come from the same distribution.",
+        },
+      ],
+    },
+    // ── 8 ────────────────────────────────────────────────────────────────────
+    {
+      id: "kmeans",
+      name: "No labels: k-means",
+      problem: "Every method so far needed someone to label the data first, and real labels are expensive or simply absent. Clustering finds structure with no labels at all.",
+      steps: [
+        {
+          type: "order",
+          q: "Build the k-means loop. Click the four steps in order.",
+          pieces: [
+            "Place k centres",
+            "Assign each point to its nearest centre",
+            "Move each centre to the mean of its points",
+            "Repeat until nothing moves",
+          ],
+          posHints: [
+            "You need somewhere to measure distances from before you can measure anything.",
+            "Now every point picks a side, based on which centre is closest.",
+            "Each centre then relocates to sit in the middle of whatever claimed it.",
+            "Those two steps alternate until the assignments stop changing.",
+          ],
+          why: "Assign, then re-centre, then repeat. The centres are usually <b>hypothetical points</b>, not actual data samples — they drift to wherever the mean of their members lands.",
+        },
+        {
+          type: "multi",
+          ctx: "k-means scores points only by <b>distance to a centre</b> — it ignores the shape and spread of a cluster entirely.",
+          q: "Select every situation that assumption breaks on.",
+          opts: [
+            "Clusters of very different sizes",
+            "Overlapping clusters",
+            "Elongated or oddly-oriented clusters",
+            "Round, well-separated clusters",
+            "Data with more than two features",
+            "Data that really does contain exactly k groups",
+          ],
+          correct: [0, 1, 2],
+          hintFn: (sel) => {
+            if (sel.indexOf(3) !== -1) return "Round and well separated is the case k-means handles <i>best</i> — spherical clusters are exactly what distance-to-centre assumes.";
+            if (sel.indexOf(4) !== -1) return "Dimensionality is fine; distance works in any number of features. Think about cluster <i>shape</i> instead.";
+            if (sel.indexOf(5) !== -1) return "That is the ideal case, not a failure — knowing the true k is the one thing that makes the algorithm easy.";
+            return `You have ${sel.length} of the three. Everything that goes wrong follows from one assumption: clusters are round and about the same size. What violates that?`;
+          },
+          why: "All three failures come from the same root: using only distance-to-centre <b>implicitly assumes spherical clusters</b>. Spirals and clusters-within-clusters break it completely. You must also choose k in advance — awkward, when not knowing the structure is the whole reason you are clustering.",
+        },
+      ],
+    },
+    // ── 9 ────────────────────────────────────────────────────────────────────
+    {
+      id: "boss",
+      name: "Boss round: the whole chain",
+      problem: "Every idea in this lecture exists because the one before it fell short. Match each to the gap it closes — and leave knowing what not to revise.",
+      steps: [
+        {
+          type: "mcq",
+          q: "Machine learning in one sentence…",
+          opts: ["pattern matching on data", "function approximation", "minimising training error", "fitting a straight line"],
+          a: 1,
+          why: "Learn an f mapping X to Y, closely enough to be useful. Everything else is detail.",
+        },
+        {
+          type: "mcq",
+          q: "Regularisation exists to fix…",
+          opts: [
+            "slow training",
+            "models that fit the training data beautifully and generalise badly",
+            "missing labels",
+            "imbalanced classes",
+          ],
+          a: 1,
+          why: "A penalty on weight magnitude biases the optimiser toward simpler, smoother models — Occam's razor, enforced during training.",
+        },
+        {
+          type: "mcq",
+          q: "Ensembles exist to fix…",
+          opts: [
+            "the instability of a single deep tree — averaging many cancels the variance",
+            "vanishing gradients",
+            "the cost of labelling",
+            "the need to choose a loss function",
+          ],
+          a: 0,
+          why: "Bias is being too simple; variance is swinging with the sample. Averaging attacks variance.",
+        },
+        {
+          type: "mcq",
+          q: "Validation and cross-validation exist to fix…",
+          opts: [
+            "slow convergence",
+            "having no honest way to choose hyperparameters — training data flatters them and the test set must stay untouched",
+            "overfitting during training itself",
+            "clusters of unequal size",
+          ],
+          a: 1,
+          hints: { 2: "Close, but that is what regularisation and complexity control do. Validation is about <i>choosing</i> between models, honestly." },
+          why: "Fit on train, choose on validation, report once on test.",
+        },
+        {
+          type: "mcq",
+          q: "The question to ask about any metric before you trust it:",
+          opts: [
+            "Is it above 90%?",
+            "How rare is the positive class, and would a model that predicts nothing score well on this?",
+            "Is it the same metric the paper used?",
+            "Does it run quickly?",
+          ],
+          a: 1,
+          hints: { 0: "The 99%-accurate model in level 6 clears that bar and never identifies a single case." },
+          why: "Class balance decides whether a metric means anything. Always ask what the lazy baseline scores.",
+        },
+        {
+          type: "mcq",
+          q: "Last one, and it saves you revision time. Which part of this lecture did the professor say is <b>not</b> on the midterm?",
+          opts: [
+            "Decision trees and ensembles",
+            "The Chain of Thought / Tree of Thoughts detour — he said so directly, and the slides repeat it",
+            "Model metrics",
+            "k-means clustering",
+          ],
+          a: 1,
+          hints: {
+            0: "Very much examinable — greedy splitting and the trees-versus-depth asymmetry are both flagged in the tips.",
+            3: "Examinable: know the four steps and the failure modes.",
+          },
+          why: 'The slides say it outright: <span class="mono">“Nothing here is required for the midterm; it explains why the idea persists.”</span> It is an analogy about search, offered for interest and interviews. Worth reading once — but not with revision time you could spend on the rest of this chain.',
+        },
+      ],
+    },
+  ],
+};
+
 export default function Lecture2_ClassicalML({ onBack }) {
   const [openConcept, setOpenConcept] = useState(0);
   const [openTip, setOpenTip] = useState(null);
@@ -3328,6 +3872,7 @@ export default function Lecture2_ClassicalML({ onBack }) {
     { id: "concepts", label: "Concepts" },
     { id: "vocab", label: "Vocabulary" },
     { id: "tips", label: "Exam Tips" },
+    { id: "game", label: "Game" },
   ];
 
   return (
@@ -3447,6 +3992,9 @@ export default function Lecture2_ClassicalML({ onBack }) {
             })}
           </div>
         )}
+
+        {/* Game tab */}
+        {tab === "game" && <LectureGame lectureId="lecture2" game={GAME} />}
       </div>
 
       {/* Floating tutor button — scoped to this lecture */}

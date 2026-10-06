@@ -6,6 +6,7 @@ import Lecture1_Intro from "./lectures/Lecture1_Intro";
 import Lecture2_ClassicalML from "./lectures/Lecture2_ClassicalML";
 import Lecture3_NeuralNetworks from "./lectures/Lecture3_NeuralNetworks";
 import Lecture4_CNNs from "./lectures/Lecture4_CNNs";
+import Lecture5_SequentialModels from "./lectures/Lecture5_SequentialModels";
 
 // ─── LECTURES ARRAY ───────────────────────────────────────────────────────────
 // Add new lectures below. Types: "LECTURE", "DISCUSSION", "EXAM PREP", "DIVIDER"
@@ -28,15 +29,15 @@ const LECTURES = [
   { id: 4, type: "LECTURE", date: "Sep 21", title: "Convolutional Neural Networks", subtitle: "Stride, padding, output size, pooling, batch norm, ResNet, CLIP · NVIDIA guest lecture on physical AI", color: TIDEPOOL, icon: "🖼️", component: Lecture4_CNNs, ready: true },
 
   { id: "d2", type: "DIVIDER", title: "UNIT 2 — CORE ARCHITECTURES", subtitle: "Sep 28 – Oct 12", color: DAWN, icon: "⛰️" },
-  { id: 5, type: "LECTURE", date: "Sep 28", title: "Sequential Models", subtitle: "RNNs and sequential data — next block previewed Sep 21 · Quiz 1 per syllabus", color: DAWN, icon: "🔁", ready: false },
-  { id: 6, type: "LECTURE", date: "Oct 5", title: "RNN, LSTM & GNNs", subtitle: "Sequence models, graph neural networks", color: DAWN, icon: "🕸️", ready: false },
+  { id: 5, type: "LECTURE", date: "Sep 28", title: "RNNs, LSTM & Transformers", subtitle: "Sequential data, BPTT, LSTM gates, attention, positional encoding, transformer blocks, intro to graph neural networks", color: DAWN, icon: "🔁", component: Lecture5_SequentialModels, ready: true },
+  { id: 6, type: "LECTURE", date: "Oct 5", title: "Graph Neural Networks", subtitle: "Continuing GNNs — graph representation learning, message passing", color: DAWN, icon: "🕸️", ready: false },
   { id: 7, type: "LECTURE", date: "Oct 12", title: "Training Dynamics & Transfer Learning", subtitle: "How training actually behaves, transfer learning", color: DAWN, icon: "🌊", ready: false },
 
   { id: "d3", type: "DIVIDER", title: "UNIT 3 — GENERATIVE & ATTENTION", subtitle: "Oct 19 – Oct 26", color: GOLD, icon: "🌄" },
   { id: 8, type: "LECTURE", date: "Oct 19", title: "Generative AI: GAN & VAE", subtitle: "Assignment due · exam scope posted today", color: GOLD, icon: "🎨", ready: false },
   { id: 9, type: "EXAM PREP", date: "Oct 26", title: "Attention, Decoding & MoE", subtitle: "Attention, decoding, mixture of experts — midterm review session", color: GOLD, icon: "🔍", ready: false },
 
-  { id: "midterm", type: "EXAM", date: "Nov 2", title: "Midterm Exam", subtitle: "Open book, no devices — cumulative through Oct 26 lecture only", color: ALERT, icon: "📝", ready: false },
+  { id: "midterm", type: "EXAM", date: "Nov 2", title: "Midterm Exam", subtitle: "Multiple choice only, open book, no devices — cumulative through Oct 26 lecture only", color: ALERT, icon: "📝", ready: false },
 
   { id: "d4", type: "DIVIDER", title: "UNIT 4 — MODERN AI", subtitle: "Nov 9 – Nov 23", color: GLACIER, icon: "🧊" },
   { id: 11, type: "LECTURE", date: "Nov 9", title: "Self-Supervised Learning & LLMs", subtitle: "Self-supervised learning, LLMs, out-of-distribution & anomaly detection · Project midterm report due", color: GLACIER, icon: "💬", ready: false },

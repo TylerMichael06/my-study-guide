@@ -62,11 +62,10 @@ function CountdownRing({ daysLeft, label }) {
 // the poster session + final report serve as the summative experience. ──────
 const KEY_DATES = [
   { date: "2026-09-18", label: "Pre-Proposal (late teams)", detail: "Submit as a group on Gradescope — extended to Fri for late-formed teams" },
-  { date: "2026-09-28", label: "Quiz 1 (per syllabus)", detail: "Format still unconfirmed as of Sep 21 — watch Piazza" },
   { date: "2026-10-19", label: "Assignment Due", detail: "Coding assignment · exam scope posted" },
-  { date: "2026-11-02", label: "Midterm", detail: "Open book (bring any notes), no devices — cumulative through Oct 26" },
+  { date: "2026-11-02", label: "Midterm", detail: "Multiple choice only · open book (bring any notes), no devices · through Oct 26" },
   { date: "2026-11-09", label: "Midterm Report Due", detail: "Project progress report" },
-  { date: "2026-11-16", label: "Quiz 2", detail: "In-class, completion-graded" },
+  { date: "2026-11-16", label: "Quiz 2 (if triggered)", detail: "Quizzes are dynamic — unused quiz points roll into the final report" },
   { date: "2026-11-30", label: "Poster Session", detail: "Last class — project poster & demo" },
   { date: "2026-12-07", label: "Final Report Due", detail: "No class — final deliverable of the course" },
 ];
