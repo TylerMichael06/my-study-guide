@@ -7,6 +7,7 @@ import Lecture2_ClassicalML from "./lectures/Lecture2_ClassicalML";
 import Lecture3_NeuralNetworks from "./lectures/Lecture3_NeuralNetworks";
 import Lecture4_CNNs from "./lectures/Lecture4_CNNs";
 import Lecture5_SequentialModels from "./lectures/Lecture5_SequentialModels";
+import Lecture6_GraphNeuralNetworks from "./lectures/Lecture6_GraphNeuralNetworks";
 
 // ─── LECTURES ARRAY ───────────────────────────────────────────────────────────
 // Add new lectures below. Types: "LECTURE", "DISCUSSION", "EXAM PREP", "DIVIDER"
@@ -30,8 +31,8 @@ const LECTURES = [
 
   { id: "d2", type: "DIVIDER", title: "UNIT 2 — CORE ARCHITECTURES", subtitle: "Sep 28 – Oct 12", color: DAWN, icon: "⛰️" },
   { id: 5, type: "LECTURE", date: "Sep 28", title: "RNNs, LSTM & Transformers", subtitle: "Sequential data, BPTT, LSTM gates, attention, positional encoding, transformer blocks, intro to graph neural networks", color: DAWN, icon: "🔁", component: Lecture5_SequentialModels, ready: true },
-  { id: 6, type: "LECTURE", date: "Oct 5", title: "Graph Neural Networks", subtitle: "Continuing GNNs — graph representation learning, message passing", color: DAWN, icon: "🕸️", ready: false },
-  { id: 7, type: "LECTURE", date: "Oct 12", title: "Training Dynamics & Transfer Learning", subtitle: "How training actually behaves, transfer learning", color: DAWN, icon: "🌊", ready: false },
+  { id: 6, type: "LECTURE", date: "Oct 5", title: "Graph Neural Networks & Training Dynamics", subtitle: "Invariance & equivariance, neighbour aggregation, the GCN update rule, over-smoothing, GraphRAG — then normalisation, initialisation and momentum · Assignment 1 released", color: DAWN, icon: "🕸️", component: Lecture6_GraphNeuralNetworks, ready: true },
+  { id: 7, type: "LECTURE", date: "Oct 12", title: "Regularization & Transfer Learning", subtitle: "Continuing training dynamics — dropout, regularization, validation strategy, fine-tuning and LoRA", color: DAWN, icon: "🌊", ready: false },
 
   { id: "d3", type: "DIVIDER", title: "UNIT 3 — GENERATIVE & ATTENTION", subtitle: "Oct 19 – Oct 26", color: GOLD, icon: "🌄" },
   { id: 8, type: "LECTURE", date: "Oct 19", title: "Generative AI: GAN & VAE", subtitle: "Assignment due · exam scope posted today", color: GOLD, icon: "🎨", ready: false },
