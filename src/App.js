@@ -9,6 +9,8 @@ import Lecture4_CNNs from "./lectures/Lecture4_CNNs";
 import Lecture5_SequentialModels from "./lectures/Lecture5_SequentialModels";
 import Lecture6_GraphNeuralNetworks from "./lectures/Lecture6_GraphNeuralNetworks";
 import Lecture7_RegularizationTransfer from "./lectures/Lecture7_RegularizationTransfer";
+import Lecture8_GenerativeModels from "./lectures/Lecture8_GenerativeModels";
+import Lecture9_MidtermReview2 from "./lectures/Lecture9_MidtermReview2";
 
 // ─── LECTURES ARRAY ───────────────────────────────────────────────────────────
 // Add new lectures below. Types: "LECTURE", "DISCUSSION", "EXAM PREP", "DIVIDER"
@@ -36,10 +38,10 @@ const LECTURES = [
   { id: 7, type: "LECTURE", date: "Oct 12", title: "Optimization, Regularization & Transfer Learning", subtitle: "Momentum & Adam, learning-rate schedules, early stopping, dropout, data augmentation, hyperparameters, transfer learning, adapters & LoRA", color: DAWN, icon: "🌊", component: Lecture7_RegularizationTransfer, ready: true },
 
   { id: "d3", type: "DIVIDER", title: "UNIT 3 — GENERATIVE & ATTENTION", subtitle: "Oct 19 – Oct 26", color: GOLD, icon: "🌄" },
-  { id: 8, type: "LECTURE", date: "Oct 19", title: "Generative AI: GAN & VAE", subtitle: "Assignment due · exam scope posted today", color: GOLD, icon: "🎨", ready: false },
-  { id: 9, type: "EXAM PREP", date: "Oct 26", title: "Attention, Decoding & MoE", subtitle: "Attention, decoding, mixture of experts — midterm review session", color: GOLD, icon: "🔍", ready: false },
+  { id: 8, type: "LECTURE", date: "Oct 19", title: "Midterm Review & Generative Models", subtitle: "Half midterm review (classical ML, shapes, conv, pooling) · then GANs, autoencoders, VAEs, AutoML — generative half is NOT on the exam", color: GOLD, icon: "🎨", component: Lecture8_GenerativeModels, ready: true },
+  { id: 9, type: "EXAM PREP", date: "Oct 26", title: "Midterm Review Part 2", subtitle: "Every worked example done live — SGD, init, batch norm, dropout, L2, attention, graphs · then the exam brief: scope is blocks 1–7, the sample paper is last year's REAL exam · self-supervised learning and the guest lecture are not examinable", color: GOLD, icon: "🔍", component: Lecture9_MidtermReview2, ready: true },
 
-  { id: "midterm", type: "EXAM", date: "Nov 2", title: "Midterm Exam", subtitle: "Multiple choice only, open book, no devices — cumulative through Oct 26 lecture only", color: ALERT, icon: "📝", ready: false },
+  { id: "midterm", type: "EXAM", date: "Nov 2", title: "Midterm Exam", subtitle: "50 questions, 2 hours, 11 pages, one answer sheet — write your USC ID · any paper materials, BASIC CALCULATOR permitted, no smart glasses · blocks 1–7 only, research topics excluded · they will curve", color: ALERT, icon: "📝", ready: false },
 
   { id: "d4", type: "DIVIDER", title: "UNIT 4 — MODERN AI", subtitle: "Nov 9 – Nov 23", color: GLACIER, icon: "🧊" },
   { id: 11, type: "LECTURE", date: "Nov 9", title: "Self-Supervised Learning & LLMs", subtitle: "Self-supervised learning, LLMs, out-of-distribution & anomaly detection · Project midterm report due", color: GLACIER, icon: "💬", ready: false },

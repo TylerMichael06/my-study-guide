@@ -10,7 +10,7 @@ const CARD_BG = "#121f1a";
 const BORDER = "#243830";
 const BONE = "#f2f0e6";
 const LICHEN = "#9fb3a6";
-const STONE = "#5b6d62";
+const STONE = "#5b6d62whaa";
 
 const DISPLAY = "'Space Grotesk', sans-serif";
 const BODY = "'Manrope', sans-serif";

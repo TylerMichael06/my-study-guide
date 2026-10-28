@@ -62,8 +62,8 @@ function CountdownRing({ daysLeft, label }) {
 // the poster session + final report serve as the summative experience. ──────
 const KEY_DATES = [
   { date: "2026-09-18", label: "Pre-Proposal (late teams)", detail: "Submit as a group on Gradescope — extended to Fri for late-formed teams" },
-  { date: "2026-10-26", label: "Assignment 1 Due + Midterm Review", detail: "Only the 2-page report is graded (plus code) · AI use permitted · PRIVATE Piazza posts only. Review session in class this day — he confirmed Oct 26. Deadline: he said \"exactly three weeks\" from Oct 5; the posted schedule shows Oct 19 — worth confirming." },
-  { date: "2026-11-02", label: "Midterm", detail: "Multiple choice only · any paper materials, no electronics · no calculator needed, he said there'll be no complex calculation · research topics are OUT of scope · cumulative through Oct 26" },
+  { date: "2026-10-26", label: "Assignment 1 Due", detail: "RESOLVED — it was due the night of Oct 26, not Oct 19. Only the 2-page report is graded (plus code) · AI use permitted · PRIVATE Piazza posts only. Midterm Review Part 2 ran in class the same day." },
+  { date: "2026-11-02", label: "Midterm", detail: "50 questions, 2 hours, 11 PAGES, ONE ANSWER SHEET — bring a pen and write your USC ID clearly · any paper materials · BASIC CALCULATOR permitted (square root is useful), nothing internet-connected, NO SMART GLASSES · scope is BLOCKS 1–7, confirmed twice, and research topics inside those blocks are out too · the sample questions he handed out ARE last year's real exam, and the review slides' practice questions are variations of this year's · ~70% fundamentals, most people finish in an hour, and HE WILL CURVE if scores come out low · he will not be present — proctors run it" },
   { date: "2026-11-09", label: "Midterm Report Due", detail: "Project progress report" },
   { date: "2026-11-16", label: "Quiz 2 (if triggered)", detail: "Quizzes are dynamic — unused quiz points roll into the final report" },
   { date: "2026-11-30", label: "Poster Session", detail: "Last class — project poster & demo" },
